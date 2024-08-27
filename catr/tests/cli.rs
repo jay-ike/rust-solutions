@@ -9,6 +9,7 @@ const EMPTY: &str = "tests/inputs/empty.txt";
 const FOX: &str = "tests/inputs/fox.txt";
 const SPIDERS: &str = "tests/inputs/spiders.txt";
 const BUSTLE: &str = "tests/inputs/the-bustle.txt";
+const JET: &str = "tests/inputs/jet.txt";
 
 // --------------------------------------------------
 #[test]
@@ -85,7 +86,7 @@ fn run_stdin(
 // --------------------------------------------------
 #[test]
 fn bustle_stdin() -> MyResult<()> {
-    run_stdin(BUSTLE, &["-"], "tests/expected/the-bustle.txt.stdin.out")
+    run_stdin(BUSTLE, &["-"], "tests/expected/the-bustle.txt.out")
 }
 
 // --------------------------------------------------
@@ -94,7 +95,7 @@ fn bustle_stdin_n() -> MyResult<()> {
     run_stdin(
         BUSTLE,
         &["-n", "-"],
-        "tests/expected/the-bustle.txt.n.stdin.out",
+        "tests/expected/the-bustle.txt.n.out",
     )
 }
 
@@ -104,7 +105,7 @@ fn bustle_stdin_b() -> MyResult<()> {
     run_stdin(
         BUSTLE,
         &["-b", "-"],
-        "tests/expected/the-bustle.txt.b.stdin.out",
+        "tests/expected/the-bustle.txt.b.out",
     )
 }
 
@@ -200,3 +201,52 @@ fn all_n() -> MyResult<()> {
 fn all_b() -> MyResult<()> {
     run(&[FOX, SPIDERS, BUSTLE, "-b"], "tests/expected/all.b.out")
 }
+
+// --------------------------------------------------
+#[test]
+fn jet_s() -> MyResult<()> {
+    run(&[JET, "-s"], "tests/expected/jet.txt.s.out")
+}
+
+// --------------------------------------------------
+#[test]
+fn jet_sn() -> MyResult<()> {
+    run(&[JET, "-s", "-n"], "tests/expected/jet.txt.s.n.out")
+}
+
+// --------------------------------------------------
+#[test]
+fn jet_sb() -> MyResult<()> {
+    run(&[JET, "-s", "-b"], "tests/expected/jet.txt.s.b.out")
+}
+
+// --------------------------------------------------
+#[test]
+fn jet_stdin_s() -> MyResult<()> {
+    run_stdin(
+        JET,
+        &["-s", "-"],
+        "tests/expected/jet.txt.s.out",
+    )
+}
+
+// --------------------------------------------------
+#[test]
+fn jet_stdin_sb() -> MyResult<()> {
+    run_stdin(
+        JET,
+        &["-s", "-b", "-"],
+        "tests/expected/jet.txt.s.b.out",
+    )
+}
+
+// --------------------------------------------------
+#[test]
+fn jet_stdin_sn() -> MyResult<()> {
+    run_stdin(
+        JET,
+        &["-s", "-n", "-"],
+        "tests/expected/jet.txt.s.n.out",
+    )
+}
+

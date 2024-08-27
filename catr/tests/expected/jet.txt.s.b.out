@@ -1,0 +1,10 @@
+
+     1	0.0.0.0 https://account.jetbrains.com:443
+     2	0.0.0.0 http://www.jetbrains.com
+     3	0.0.0.0 account.jetbrains.com
+     4	1.2.3.4 account.jetbrains.com
+     5	1.2.3.4 http://www.jetbrains.com
+     6	1.2.3.4 www-weighted.jetbrains.com
+
+     7	168.177.1.1 sales.jetbrains.com
+     8	0.1.2.0 http://customers.jetbrains.com
