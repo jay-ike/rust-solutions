@@ -1,4 +1,6 @@
+use std::fs::File;
 use std::error::Error;
+use std::io::{stdin, BufRead, BufReader, Read};
 use clap::{value_parser, Arg, ArgAction, Command};
 
 
@@ -40,7 +42,7 @@ pub fn get_args() -> MyResult<Config> {
             .action(ArgAction::Set)
             .value_parser(|val: &str| match parse_positive_int(val) {
                 Ok(v) => Ok(v),
-                _ => Err(format!("failed to parse bytes value {}", val))
+                _ => Err("invalid digit found in string")
             })
             .help("number of bytes to print")
         )
@@ -52,7 +54,7 @@ pub fn get_args() -> MyResult<Config> {
             .default_value("10")
             .value_parser(|val: &str| match parse_positive_int(val) {
                 Ok(v) => Ok(v),
-                _ => Err(format!("failed to parse lines value {}", val))
+                _ => Err("invalid digit found in string")
             })
             .action(ArgAction::Set)
             .help("number of lines to print")
@@ -71,7 +73,63 @@ pub fn get_args() -> MyResult<Config> {
     )
 }
 
+fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
+    match filename {
+        "-" => Ok(Box::new(BufReader::new(stdin()))),
+        _ => Ok(Box::new(BufReader::new(File::open(filename)?)))
+    }
+}
+
 pub fn run(config: Config) -> MyResult<()> {
-    dbg!(config);
+    let files_count = config.files.len();
+    for (index, filename) in config.files.into_iter().enumerate() {
+        if files_count > 1 {
+            println!(
+                "{}==> {} <==",
+                if index > 0 {"\n"} else {""},
+                filename
+            );
+        }
+        match open(&filename) {
+            Err(err) => eprintln!("Failed to Open {}: {}", filename, err),
+            Ok(mut file) => {
+                if let Some(bytes_count) = config.bytes {
+                    let mut handle = file.take(bytes_count as u64);
+                    let mut buffer = vec![0; bytes_count];
+                    let bytes = handle.read(&mut buffer)?;
+                    print!(
+                        "{}",
+                        String::from_utf8_lossy(&buffer[..bytes])
+                    );
+                } else {
+                    let mut line = String::new();
+                    for _ in 0..config.lines {
+                        let bytes = file.read_line(&mut line)?;
+                        if bytes == 0 {
+                            break;
+                        }
+                        print!("{}", line);
+                        line.clear();
+                    }
+                }
+            }
+        }
+    }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_positive_int;
+
+#[test]
+    fn test_parse_positive_int() {
+        let mut res;
+        res = parse_positive_int("3");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), 3);
+        res = parse_positive_int("foo");
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().to_string(), "foo".to_string())
+    }
 }
