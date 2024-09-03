@@ -422,3 +422,11 @@ fn multiple_files_c4() -> Result<()> {
         "tests/expected/all.c4.out",
     )
 }
+
+#[test]
+fn multiple_files_n_neg_2() -> Result<()> {
+    run(
+        &["-n", "-2", EMPTY, ONE, TWO, THREE, TWELVE],
+        "tests/expected/all.n-2.out"
+    )
+}
