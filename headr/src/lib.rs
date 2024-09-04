@@ -39,6 +39,7 @@ pub fn get_args() -> MyResult<Config> {
                 .long("bytes")
                 .conflicts_with("lines")
                 .action(ArgAction::Set)
+                .allow_hyphen_values(true)
                 .value_parser(|val: &str| match parse_positive_int(val) {
                     Ok(v) => Ok(v),
                     _ => Err("invalid digit found in string"),
@@ -82,6 +83,67 @@ fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
     }
 }
 
+fn handle_lines(mut file: Box<dyn BufRead>, arg_lines: isize) -> MyResult<()> {
+    let mut buffer = String::new();
+    let mut lines: usize = 0;
+    let requested_lines = arg_lines.unsigned_abs();
+    loop {
+        let bytes = file.read_line(&mut buffer)?;
+        if bytes == 0 {
+            break;
+        }
+        if arg_lines > 0 {
+            print!("{}", buffer);
+            buffer.clear();
+        }
+        lines += 1;
+        if lines == arg_lines.unsigned_abs() && arg_lines > 0 {
+            break;
+        }
+    }
+
+    if !buffer.is_empty() && lines > requested_lines {
+        buffer.split('\n').enumerate().for_each(
+            |(i, content)| {
+                if i < lines - requested_lines {
+                    print!("{}\n", content);
+                }
+            }
+        );
+    }
+    Ok(())
+}
+
+fn handle_bytes(mut file: Box<dyn BufRead>, arg_bytes: isize) -> MyResult<()> {
+    let mut buffer: Vec<u8> = vec![];
+    let mut read_bytes: usize = 0;
+    loop {
+        let mut tmp: Vec<u8>;
+        let bytes: usize;
+        if arg_bytes > 0 {
+            tmp = vec![0; arg_bytes.unsigned_abs().try_into().unwrap()];
+            let mut handle = file.take(arg_bytes.unsigned_abs() as u64);
+            bytes = handle.read(&mut tmp)?;
+            read_bytes += bytes;
+            tmp[..bytes].into_iter().for_each(|&bit| buffer.push(bit));
+            break;
+        } else {
+            let abs_bytes = arg_bytes.unsigned_abs();
+            tmp = vec![0; 128];
+            bytes = file.read(&mut tmp)?;
+            read_bytes += bytes;
+            tmp[..bytes].into_iter().for_each(|&bit| buffer.push(bit));
+            if bytes == 0 {
+                read_bytes = if read_bytes > abs_bytes {read_bytes - abs_bytes} else {0};
+                break;
+            }
+        }
+    }
+    if read_bytes > 0 {
+        print!("{}", String::from_utf8_lossy(&buffer[..read_bytes]));
+    }
+    Ok(())
+}
 pub fn run(config: Config) -> MyResult<()> {
     let files_count = config.files.len();
     for (index, filename) in config.files.into_iter().enumerate() {
@@ -90,37 +152,11 @@ pub fn run(config: Config) -> MyResult<()> {
         }
         match open(&filename) {
             Err(err) => eprintln!("Failed to Open {}: {}", filename, err),
-            Ok(mut file) => {
+            Ok(file) => {
                 if let Some(bytes_count) = config.bytes {
-                    let mut handle = file.take(bytes_count as u64);
-                    let mut buffer = vec![0; bytes_count.try_into().unwrap()];
-                    let bytes = handle.read(&mut buffer)?;
-                    print!("{}", String::from_utf8_lossy(&buffer[..bytes]));
+                    handle_bytes(file, bytes_count)?;
                 } else {
-                    let mut buffer = String::new();
-                    let mut lines: usize = 0;
-                    let requested_lines = config.lines.unsigned_abs();
-                    loop {
-                        let bytes = file.read_line(&mut buffer)?;
-                        if bytes == 0 {
-                            break;
-                        }
-                        if config.lines > 0 {
-                            print!("{}", buffer);
-                            buffer.clear();
-                        }
-                        lines += 1;
-                    }
-
-                    if !buffer.is_empty() && lines > requested_lines {
-                        buffer.split('\n').enumerate().for_each(
-                            |(i, content)| {
-                                if i < lines - requested_lines {
-                                    print!("{}\n", content);
-                                }
-                            }
-                        );
-                    }
+                    handle_lines(file, config.lines)?;
                 }
             }
         }
