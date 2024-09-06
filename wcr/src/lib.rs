@@ -27,15 +27,6 @@ pub struct FileInfo {
     num_words: usize
 }
 
-trait Printer {
-    fn print (&self, config: &FileParams);
-}
-
-trait Voidable {
-    fn init () -> Self;
-    fn is_void(&self) -> bool;
-}
-
 impl std::ops::AddAssign for FileInfo {
     fn add_assign(&mut self, rhs: Self) {
         *self = Self {
@@ -47,8 +38,23 @@ impl std::ops::AddAssign for FileInfo {
     }
 }
 
-impl Voidable for FileInfo {
-    fn init () -> Self {
+impl Copy for FileInfo {}
+
+impl Clone for FileInfo {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl FileParams {
+    fn arg_count(&self) -> usize {
+        [self.bytes, self.chars, self.lines, self.words]
+            .iter().filter(|v| **v).count()
+
+    }
+}
+impl  FileInfo {
+    fn void () -> Self {
         FileInfo {
             num_bytes: 0,
             num_chars: 0,
@@ -60,22 +66,36 @@ impl Voidable for FileInfo {
         [self.num_bytes, self.num_chars, self.num_lines, self.num_words]
             .iter().all(|&p| p == 0)
     }
-}
-impl Printer for FileInfo {
-   fn print (&self, config: &FileParams) {
-       if config.lines {
-           print!("{:>8}", self.num_lines);
-       }
-       if config.words {
-           print!("{:>8}", self.num_words);
-       }
-       if config.bytes {
-           print!("{:>8}", self.num_bytes);
-       }
-       if config.chars {
-           print!("{:>8}", self.num_chars);
-       }
-   }
+    fn max_digits(&self, params: &FileParams) -> usize {
+        let args = params.arg_count();
+        [
+            (params.bytes, self.num_bytes),
+            (params.chars, self.num_chars),
+            (params.lines, self.num_lines),
+            (params.words, self.num_words)
+        ]
+            .iter()
+            .filter(|(arg1, _)| *arg1 || args > 1)
+            .fold(0usize, |acc, (_, v2)| acc.max(*v2)).to_string().len()
+    }
+    fn print (&self, config: &FileParams, width: usize) {
+        let mut prev_matched = false;
+        if config.lines {
+            print!("{:>width$}", self.num_lines);
+            prev_matched = true;
+        }
+        if config.words {
+            print!("{1}{:>width$}", self.num_words, if prev_matched {" "} else {""});
+            prev_matched = true;
+        }
+        if config.chars {
+            print!("{1}{:>width$}", self.num_chars, if prev_matched  {" "} else {""});
+            prev_matched = true;
+        }
+        if config.bytes {
+            print!("{1}{:>width$}", self.num_bytes, if prev_matched {" "} else {""});
+        }
+    }
 }
 pub fn count(mut file: impl BufRead) -> MyResult<FileInfo>{
     let mut infos = FileInfo {
@@ -144,8 +164,6 @@ pub fn get_args() -> MyResult<Config> {
             .long("chars")
             .help("print the character counts")
             .action(ArgAction::SetTrue)
-            .conflicts_with("bytes")
-
         ).get_matches();
     let mut lines = matches.get_flag("lines");
     let mut words = matches.get_flag("words");
@@ -180,24 +198,39 @@ fn open(filename: &str) -> MyResult<Box<dyn BufRead>>{
 }
 
 pub fn run(config: Config) -> MyResult<()> {
-    let mut total_infos = FileInfo::init();
+    let mut total_infos = FileInfo::void();
+    let mut all_infos: Vec<(FileInfo, &str)> = [].to_vec();
+    let mut max_digits: usize = 0;
     for filename in &config.files {
         match open(filename.as_str()) {
             Err(e) => eprintln!("failed to open {}: {}", filename, e),
             Ok(file) => {
                 let infos = count(file)?;
-                infos.print(&config.settings);
+                all_infos.push((infos, filename));
+                max_digits = max_digits.max(infos.max_digits(&config.settings));
                 if filename != "-" {
-                    print!(" {}\n", filename);
                     total_infos += infos;
-                } else {
-                    print!("\n");
                 }
             }
         }
     }
+    if *&config.files.len() > 1 {
+        max_digits = max_digits.max(3);
+    }
+    max_digits = max_digits.max(total_infos.max_digits(&config.settings));
+    for (infos, filename) in all_infos {
+        infos.print(
+            &config.settings,
+            max_digits.max(config.files.len())
+        );
+        if filename == "-" {
+            print!("\n");
+        } else {
+            print!(" {}\n", filename);
+        }
+    }
     if !total_infos.is_void()  && config.files.len() > 1 {
-        total_infos.print(&config.settings);
+        total_infos.print(&config.settings, max_digits.max(config.files.len()));
         print!(" total\n");
     }
     Ok(())
