@@ -1,6 +1,8 @@
-use std::error::Error;
-use regex::Regex;
-use clap::{parser::ValuesRef, value_parser, Arg, ArgAction, Command};
+use core::panic;
+use std::{collections::HashMap, error::Error, os::unix::ffi::OsStrExt};
+use regex::bytes::Regex;
+use clap::{value_parser, Arg, ArgAction, Command};
+use walkdir::{WalkDir, DirEntry};
 use crate::EntryType::*;
 
 pub type MyResult<T> = Result<T, Box<dyn Error>>;
@@ -19,6 +21,32 @@ pub struct Config {
     paths: Vec<String>,
 }
 
+impl EntryType {
+    fn match_type(&self, file_type: &std::fs::FileType) -> bool {
+       match self {
+            Dir => file_type.is_dir(),
+            File => file_type.is_file(),
+            Link => file_type.is_symlink(),
+       }
+    }
+}
+impl Config {
+   fn print(&self, entry: &DirEntry) {
+        let good_entry: bool;
+        let good_name: bool;
+        good_entry = self.entry_types.iter().any(
+            |v| v.match_type(&entry.file_type())
+        ) || self.entry_types.is_empty();
+        good_name = self.names.iter().any(
+            |v| v.is_match(&entry.file_name().as_bytes())
+        ) || self.names.is_empty();
+
+        if good_name && good_entry {
+            println!("{}", entry.path().display());
+        }
+   }
+}
+
 pub fn get_args() -> MyResult<Config>{
     let matches = Command::new("findr")
         .version("0.1.0")
@@ -31,11 +59,11 @@ pub fn get_args() -> MyResult<Config>{
             .short('n')
             .long("name")
             .value_name("NAME")
-            .action(ArgAction::Set)
+            .action(ArgAction::Append)
         )
         .arg(
             Arg::new("type")
-            .num_args(0..3)
+            .num_args(0..)
             .value_parser(["f", "d", "l"])
             .short('t')
             .long("type")
@@ -54,17 +82,28 @@ pub fn get_args() -> MyResult<Config>{
     Ok(Config {
         entry_types: matches
         .get_many::<String>("type")
-        .unwrap_or(ValuesRef::default())
-        .map(|v| match v.as_str() {
+        .unwrap_or_default()
+        .fold(HashMap::<String, &str>::new(), |mut acc, v| {
+                acc.insert(v.to_string(), v);
+                acc
+        })
+        .values()
+        .map(|v| match *v {
                 "f" => File,
                 "d" => Dir,
-                _ => Link
+                "l" => Link,
+                _ => unreachable!("Invalid type")
         })
         .into_iter()
         .collect(),
         names: matches.get_many::<String>("name")
-        .unwrap_or(ValuesRef::default())
-        .map(|v| Regex::new(&v.as_str()).unwrap())
+        .unwrap_or_default()
+        .map(|v| {
+                match Regex::new(&v.as_str()) {
+                    Ok(val) => val,
+                    Err(_) => panic!("error: invalid value \'{}\'", &v.as_str())
+                }
+        })
         .into_iter()
         .collect(),
         paths: matches.get_many::<String>("path")
@@ -75,7 +114,18 @@ pub fn get_args() -> MyResult<Config>{
     })
 }
 
+
+
 pub fn run(config: Config) -> MyResult<()> {
-    println!("{:?}", config);
+    for path in &config.paths {
+        for entry in WalkDir::new(path) {
+            match entry {
+                Err(e) => eprintln!("{}: ", e),
+                Ok(val) => {
+                    config.print(&val);
+                }
+            }
+        }
+    }
     Ok(())
 }
