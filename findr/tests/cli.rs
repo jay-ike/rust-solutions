@@ -318,6 +318,33 @@ fn type_d_min_depth_2_max_depth_1() -> MyResult<()> {
 
 // --------------------------------------------------
 #[test]
+fn size_gt_7k_type_f() -> MyResult<()> {
+    run(
+        &["tests/inputs", "--type", "f", "--size", "+7k"],
+        "tests/expected/size_gt_7k_type_f.txt"
+    )
+}
+
+// --------------------------------------------------
+#[test]
+fn size_lt_1500() -> MyResult<()> {
+    run(
+        &["tests/inputs", "--size", "-1500c"],
+        "tests/expected/size_lt_1500.txt"
+    )
+}
+
+// --------------------------------------------------
+#[test]
+fn size_eq_7443b() -> MyResult<()> {
+    run(
+        &["tests/inputs", "--size", "7443c"],
+        "tests/expected/size_eq_7443b.txt"
+    )
+}
+
+// --------------------------------------------------
+#[test]
 #[cfg(not(windows))]
 fn unreadable_dir() -> MyResult<()> {
     let dirname = "tests/inputs/cant-touch-this";

@@ -1,6 +1,5 @@
-use core::panic;
-use std::{collections::HashMap, error::Error, os::unix::ffi::OsStrExt, usize};
-use regex::bytes::Regex;
+use std::{collections::HashMap, error::Error, usize};
+use regex::Regex;
 use clap::{value_parser, Arg, ArgAction, Command};
 use walkdir::{WalkDir, DirEntry};
 use crate::EntryType::*;
@@ -21,6 +20,7 @@ pub struct Config {
     min_depth: usize,
     names: Vec<Regex>,
     paths: Vec<String>,
+    size: Option<String>,
 }
 
 impl EntryType {
@@ -70,6 +70,17 @@ pub fn get_args() -> MyResult<Config>{
             .default_value("0")
         )
         .arg(
+            Arg::new("size")
+            .short('s')
+            .long("size")
+            .allow_hyphen_values(true)
+            .value_parser(|v: &str| match parse_size(v) {
+                    Some(val) => Ok(val),
+                    _ => Err(format!("invalid size: {}", v))
+
+            })
+        )
+        .arg(
             Arg::new("path")
             .num_args(1..)
             .value_parser(value_parser!(String))
@@ -102,7 +113,7 @@ pub fn get_args() -> MyResult<Config>{
         .map(|v| {
                 match Regex::new(&v.as_str()) {
                     Ok(val) => val,
-                    Err(_) => panic!("error: invalid value \'{}\'", &v.as_str())
+                    Err(_) => unimplemented!("error: invalid value \'{}\'", &v.as_str())
                 }
         })
         .into_iter()
@@ -111,7 +122,8 @@ pub fn get_args() -> MyResult<Config>{
         .expect("should provide the path")
         .map(|s| s.as_str().to_string())
         .into_iter()
-        .collect()
+        .collect(),
+        size: matches.get_one::<String>("size").cloned()
     })
 }
 
@@ -126,7 +138,7 @@ pub fn run(config: Config) -> MyResult<()> {
     let name_filter = |entry: &DirEntry| -> bool {
         config.names.is_empty()
         || config.names.iter()
-            .any(|re| re.is_match(&entry.file_name().as_bytes()))
+            .any(|re| re.is_match(&entry.file_name().to_str().unwrap()))
     };
     for path in &config.paths {
         let entries = WalkDir::new(path)
@@ -142,10 +154,75 @@ pub fn run(config: Config) -> MyResult<()> {
             })
             .filter(type_filter)
             .filter(name_filter)
+            .filter(|entry| get_size_filter(config.size.clone(), match entry.metadata() {
+               Ok(meta) => meta.len().try_into().unwrap(),
+                _ => 0
+            }))
             .filter(|_| config.max_depth >= config.min_depth)
             .map(|entry| entry.path().display().to_string())
             .collect::<Vec<_>>();
         println!("{}", entries.join("\n"));
     }
     Ok(())
+}
+
+pub fn parse_size(size: &str) -> Option<String> {
+    let re = Regex::new(r"^(?<sign>[+-])?(?<factor>\d+)(?<unit>[ckMGTP])$")
+        .expect("should match pattern");
+    if re.is_match(size) {
+        return Some(size.to_string());
+    }
+    None
+
+}
+
+fn get_size_filter(size: Option<String>, file_size: usize) -> bool {
+    if size.is_none() {
+        return true;
+    }
+    let val = size.unwrap();
+    let re = Regex::new(r"^(?<sign>[+-])?(?<factor>\d+)(?<unit>[ckMGTP])$")
+        .expect("should match pattern");
+    let caps = re.captures(val.as_str())
+        .expect("failed to capture group");
+    let factor = caps.name("factor")
+        .expect("no factor in size")
+        .as_str().parse::<usize>().unwrap();
+    let unit: usize = match caps.name("unit") {
+        None => 1,
+        Some(name) => match name.as_str() {
+            "c" => 1,
+            "k" => 1024,
+            "M" => 1024 * 1024,
+            "G" => 1024 * 1024 * 1024,
+            "T" => 1024 * 1024 * 1024 * 1024,
+            "P" => 1024 * 1024 * 1024 * 1024 * 1024,
+            _ => 1
+        }
+    };
+    let request_size: usize = factor * unit;
+    match caps.name("sign") {
+        None => file_size.eq(&request_size),
+        Some(symbol) =>  {
+            match symbol.as_str() {
+                "+" => file_size.gt(&request_size),
+                "-" => file_size.lt(&request_size),
+                _ => unreachable!("sign not supported")
+            }
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_size;
+
+    #[test]
+    fn test_parse_size() {
+        assert!(parse_size("foo").is_none());
+        assert!(parse_size("+30L").is_none());
+        assert!(parse_size("-20k").is_some());
+        assert!(parse_size("+20G").is_some());
+        assert!(parse_size("20T").is_some());
+    }
 }
