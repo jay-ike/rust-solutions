@@ -282,6 +282,42 @@ fn path_g() -> MyResult<()> {
 
 // --------------------------------------------------
 #[test]
+fn type_d_min_depth_2() -> MyResult<()> {
+    run(
+        &["tests/inputs", "--type", "d", "--min-depth", "2"],
+        "tests/expected/type_d_min_depth_2.txt"
+    )
+}
+
+// --------------------------------------------------
+#[test]
+fn type_d_max_depth_1() -> MyResult<()> {
+    run(
+        &["tests/inputs", "--type", "d", "--max-depth", "1"],
+        "tests/expected/type_d_max_depth_1.txt"
+    )
+}
+
+// --------------------------------------------------
+#[test]
+fn type_d_min_depth_1_max_depth_2() -> MyResult<()> {
+    run(
+        &["tests/inputs", "--type", "d", "--min-depth", "1", "--max-depth", "2"],
+        "tests/expected/type_d_min_depth_1_max_depth_2.txt"
+    )
+}
+
+// --------------------------------------------------
+#[test]
+fn type_d_min_depth_2_max_depth_1() -> MyResult<()> {
+    run(
+        &["tests/inputs", "--type", "d", "--min-depth", "2", "--max-depth", "1"],
+        "tests/expected/type_d_min_depth_2_max_depth_1.txt"
+    )
+}
+
+// --------------------------------------------------
+#[test]
 #[cfg(not(windows))]
 fn unreadable_dir() -> MyResult<()> {
     let dirname = "tests/inputs/cant-touch-this";

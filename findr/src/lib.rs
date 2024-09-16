@@ -1,5 +1,5 @@
 use core::panic;
-use std::{collections::HashMap, error::Error, os::unix::ffi::OsStrExt};
+use std::{collections::HashMap, error::Error, os::unix::ffi::OsStrExt, usize};
 use regex::bytes::Regex;
 use clap::{value_parser, Arg, ArgAction, Command};
 use walkdir::{WalkDir, DirEntry};
@@ -17,6 +17,8 @@ enum EntryType {
 #[derive(Debug)]
 pub struct Config {
     entry_types: Vec<EntryType>,
+    max_depth: usize,
+    min_depth: usize,
     names: Vec<Regex>,
     paths: Vec<String>,
 }
@@ -29,22 +31,6 @@ impl EntryType {
             Link => file_type.is_symlink(),
        }
     }
-}
-impl Config {
-   fn print(&self, entry: &DirEntry) {
-        let good_entry: bool;
-        let good_name: bool;
-        good_entry = self.entry_types.iter().any(
-            |v| v.match_type(&entry.file_type())
-        ) || self.entry_types.is_empty();
-        good_name = self.names.iter().any(
-            |v| v.is_match(&entry.file_name().as_bytes())
-        ) || self.names.is_empty();
-
-        if good_name && good_entry {
-            println!("{}", entry.path().display());
-        }
-   }
 }
 
 pub fn get_args() -> MyResult<Config>{
@@ -69,6 +55,19 @@ pub fn get_args() -> MyResult<Config>{
             .long("type")
             .value_name("TYPE")
             .action(ArgAction::Set)
+        )
+        .arg(
+            Arg::new("max_depth")
+            .long("max-depth")
+            .value_parser(value_parser!(usize))
+            .action(ArgAction::Set)
+        )
+        .arg(
+            Arg::new("min_depth")
+            .long("min-depth")
+            .value_parser(value_parser!(usize))
+            .action(ArgAction::Set)
+            .default_value("0")
         )
         .arg(
             Arg::new("path")
@@ -96,6 +95,8 @@ pub fn get_args() -> MyResult<Config>{
         })
         .into_iter()
         .collect(),
+        max_depth: *matches.get_one::<usize>("max_depth").unwrap_or(&usize::MAX),
+        min_depth: *matches.get_one::<usize>("min_depth").unwrap(),
         names: matches.get_many::<String>("name")
         .unwrap_or_default()
         .map(|v| {
@@ -117,15 +118,34 @@ pub fn get_args() -> MyResult<Config>{
 
 
 pub fn run(config: Config) -> MyResult<()> {
+    let type_filter = |entry: &DirEntry| -> bool{
+        config.entry_types.is_empty()
+        || config.entry_types.iter()
+            .any(|v| v.match_type(&entry.file_type()))
+    };
+    let name_filter = |entry: &DirEntry| -> bool {
+        config.names.is_empty()
+        || config.names.iter()
+            .any(|re| re.is_match(&entry.file_name().as_bytes()))
+    };
     for path in &config.paths {
-        for entry in WalkDir::new(path) {
-            match entry {
-                Err(e) => eprintln!("{}: ", e),
-                Ok(val) => {
-                    config.print(&val);
-                }
-            }
-        }
+        let entries = WalkDir::new(path)
+            .min_depth(config.min_depth)
+            .max_depth(config.max_depth)
+            .into_iter()
+            .filter_map(|e| match e {
+                Err(e) => {
+                    eprintln!("{}", e);
+                    None
+                },
+                Ok(entry) => Some(entry)
+            })
+            .filter(type_filter)
+            .filter(name_filter)
+            .filter(|_| config.max_depth >= config.min_depth)
+            .map(|entry| entry.path().display().to_string())
+            .collect::<Vec<_>>();
+        println!("{}", entries.join("\n"));
     }
     Ok(())
 }

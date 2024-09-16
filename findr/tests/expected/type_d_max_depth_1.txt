@@ -1,0 +1,4 @@
+tests/inputs
+tests/inputs/d
+tests/inputs/f
+tests/inputs/a
