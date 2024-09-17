@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error, usize};
+use std::{collections::HashMap, error::Error, fs, usize};
 use regex::Regex;
 use clap::{value_parser, Arg, ArgAction, Command};
 use walkdir::{WalkDir, DirEntry};
@@ -15,6 +15,7 @@ enum EntryType {
 
 #[derive(Debug)]
 pub struct Config {
+    delete: bool,
     entry_types: Vec<EntryType>,
     max_depth: usize,
     min_depth: usize,
@@ -63,6 +64,12 @@ pub fn get_args() -> MyResult<Config>{
             .action(ArgAction::Set)
         )
         .arg(
+            Arg::new("delete")
+            .long("delete")
+            .action(ArgAction::SetTrue)
+            .help("delete result entries")
+        )
+        .arg(
             Arg::new("min_depth")
             .long("min-depth")
             .value_parser(value_parser!(usize))
@@ -90,6 +97,7 @@ pub fn get_args() -> MyResult<Config>{
         )
         .get_matches();
     Ok(Config {
+        delete: matches.get_flag("delete"),
         entry_types: matches
         .get_many::<String>("type")
         .unwrap_or_default()
@@ -140,6 +148,18 @@ pub fn run(config: Config) -> MyResult<()> {
         || config.names.iter()
             .any(|re| re.is_match(&entry.file_name().to_str().unwrap()))
     };
+    let deletion_filter = |entry: &DirEntry| -> bool {
+        if config.delete {
+            let file_type = entry.file_type();
+            if file_type.is_file() || file_type.is_symlink() {
+                fs::remove_file(entry.path().to_str().unwrap()).unwrap();
+            } else if file_type.is_dir() {
+               fs::remove_dir_all(entry.path().to_str().unwrap()).unwrap();
+            }
+            return false;
+        }
+        return true;
+    };
     for path in &config.paths {
         let entries = WalkDir::new(path)
             .min_depth(config.min_depth)
@@ -154,6 +174,7 @@ pub fn run(config: Config) -> MyResult<()> {
             })
             .filter(type_filter)
             .filter(name_filter)
+            .filter(deletion_filter)
             .filter(|entry| get_size_filter(config.size.clone(), match entry.metadata() {
                Ok(meta) => meta.len().try_into().unwrap(),
                 _ => 0

@@ -345,6 +345,24 @@ fn size_eq_7443b() -> MyResult<()> {
 
 // --------------------------------------------------
 #[test]
+fn test_file_deletion() -> MyResult<()>{
+   let filename = "tests/inputs/to-be-deleted.txt";
+    if !Path::new(filename).exists() {
+       fs::write(filename, "")?;
+    }
+    Command::cargo_bin(PRG)?
+        .arg("tests/inputs")
+        .arg("-n")
+        .arg(".*deleted.txt")
+        .arg("--delete")
+        .assert()
+        .success();
+    assert!(!Path::new(filename).exists());
+    Ok(())
+}
+
+// --------------------------------------------------
+#[test]
 #[cfg(not(windows))]
 fn unreadable_dir() -> MyResult<()> {
     let dirname = "tests/inputs/cant-touch-this";
