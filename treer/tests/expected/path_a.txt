@@ -1,0 +1,8 @@
+tests/inputs/a
+├── a.txt
+└── b
+    ├── b.csv
+    └── c
+        └── c.mp3
+
+3 directories, 3 files

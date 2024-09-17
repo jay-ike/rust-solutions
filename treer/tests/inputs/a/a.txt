@@ -1,0 +1,197 @@
+ 
+
+  [1mnode[0m
+
+  Server-side JavaScript platform (Node.js).[0m
+  More information: https://nodejs.org.[0m
+
+  [32m- Run a JavaScript file:[0m
+    [31mnode [0mpath/to/file[0m[31m[0m
+
+  [32m- Start a REPL (interactive shell):[0m
+    [31mnode[0m
+
+  [32m- Evaluate JavaScript code by passing it as an argument:[0m
+    [31mnode -e "[0mcode[0m[31m"[0m
+
+  [32m- Evaluate and print result, useful to see node's dependencies versions:[0m
+    [31mnode -p "[0mprocess.versions[0m[31m"[0m
+
+  [32m- Activate inspector, pausing execution until a debugger is connected once source code is fully parsed:[0m
+    [31mnode --no-lazy --inspect-brk [0mpath/to/file[0m[31m[0m
+
+
+  [1minkscape[0m
+
+  An SVG (Scalable Vector Graphics) editing program.[0m
+  For Inkscape versions up to 0.92.x, use -e instead of -o.[0m
+  More information: https://inkscape.org.[0m
+
+  [32m- Open an SVG file in the Inkscape GUI:[0m
+    [31minkscape [0mfilename.svg[0m[31m[0m
+
+  [32m- Export an SVG file into a bitmap with the default format (PNG) and the default resolution (96 DPI):[0m
+    [31minkscape [0mfilename.svg[0m[31m -o [0mfilename.png[0m[31m[0m
+
+  [32m- Export an SVG file into a bitmap of 600x400 pixels (aspect ratio distortion may occur):[0m
+    [31minkscape [0mfilename.svg[0m[31m -o [0mfilename.png[0m[31m -w [0m600[0m[31m -h [0m400[0m[31m[0m
+
+  [32m- Export the drawing (bounding box of all objects) of an SVG file into a bitmap:[0m
+    [31minkscape [0mfilename.svg[0m[31m -o [0mfilename.png[0m[31m -D[0m
+
+  [32m- Export a single object, given its ID, into a bitmap:[0m
+    [31minkscape [0mfilename.svg[0m[31m -i [0mid[0m[31m -o [0mobject.png[0m[31m[0m
+
+  [32m- Export an SVG document to PDF, converting all texts to paths:[0m
+    [31minkscape [0mfilename.svg[0m[31m -o [0mfilename.pdf[0m[31m --export-text-to-path[0m
+
+  [32m- Duplicate the object with id="path123", rotate the duplicate 90 degrees, save the file, and quit Inkscape:[0m
+    [31minkscape [0mfilename.svg[0m[31m --select=path123 --verb="[0mEditDuplicate;ObjectRotate90;FileSave;FileQuit[0m[31m"[0m
+
+
+  [1msed[0m
+
+  Edit text in a scriptable manner.[0m
+  More information: https://man.archlinux.org/man/sed.1.[0m
+
+  [32m- Replace the first occurrence of a regular expression in each line of a file, and print the result:[0m
+    [31msed 's/[0mregular_expression[0m[31m/[0mreplace[0m[31m/' [0mfilename[0m[31m[0m
+
+  [32m- Replace all occurrences of an extended regular expression in a file, and print the result:[0m
+    [31msed -r 's/[0mregular_expression[0m[31m/[0mreplace[0m[31m/g' [0mfilename[0m[31m[0m
+
+  [32m- Replace all occurrences of a string in a file, overwriting the file (i.e. in-place):[0m
+    [31msed -i 's/[0mfind[0m[31m/[0mreplace[0m[31m/g' [0mfilename[0m[31m[0m
+
+  [32m- Replace only on lines matching the line pattern:[0m
+    [31msed '/[0mline_pattern[0m[31m/s/[0mfind[0m[31m/[0mreplace[0m[31m/' [0mfilename[0m[31m[0m
+
+  [32m- Delete lines matching the line pattern:[0m
+    [31msed '/[0mline_pattern[0m[31m/d' [0mfilename[0m[31m[0m
+
+  [32m- Print the first 11 lines of a file:[0m
+    [31msed 11q [0mfilename[0m[31m[0m
+
+  [32m- Apply multiple find-replace expressions to a file:[0m
+    [31msed -e 's/[0mfind[0m[31m/[0mreplace[0m[31m/' -e 's/[0mfind[0m[31m/[0mreplace[0m[31m/' [0mfilename[0m[31m[0m
+
+  [32m- Replace separator `/` by any other character not used in the find or replace patterns, e.g. `#`:[0m
+    [31msed 's#[0mfind[0m[31m#[0mreplace[0m[31m#' [0mfilename[0m[31m[0m
+
+
+  [1mpython[0m
+
+  Python language interpreter.[0m
+  More information: https://www.python.org.[0m
+
+  [32m- Start a REPL (interactive shell):[0m
+    [31mpython[0m
+
+  [32m- Execute a specific Python file:[0m
+    [31mpython [0mpath/to/file.py[0m[31m[0m
+
+  [32m- Execute a specific Python file and start a REPL:[0m
+    [31mpython -i [0mpath/to/file.py[0m[31m[0m
+
+  [32m- Execute a Python expression:[0m
+    [31mpython -c "[0mexpression[0m[31m"[0m
+
+  [32m- Run the script of the specified library module:[0m
+    [31mpython -m [0mmodule[0m[31m [0marguments[0m[31m[0m
+
+  [32m- Install a package using `pip`:[0m
+    [31mpython -m [0mpip[0m[31m install [0mpackage_name[0m[31m[0m
+
+  [32m- Interactively debug a Python script:[0m
+    [31mpython -m [0mpdb[0m[31m [0mpath/to/file.py[0m[31m[0m
+
+  [32m- Start the built-in HTTP server on port 8000 in the current directory:[0m
+    [31mpython -m [0mhttp.server[0m[31m[0m
+
+
+  [1mtmux[0m
+
+  Terminal multiplexer. It allows multiple sessions with windows, panes, and more.[0m
+  See also `zellij` and `screen`.[0m
+  More information: https://github.com/tmux/tmux.[0m
+
+  [32m- Start a new session:[0m
+    [31mtmux[0m
+
+  [32m- Start a new named session:[0m
+    [31mtmux new -s [0mname[0m[31m[0m
+
+  [32m- List existing sessions:[0m
+    [31mtmux ls[0m
+
+  [32m- Attach to the most recently used session:[0m
+    [31mtmux attach[0m
+
+  [32m- Detach from the current session (inside a tmux session):[0m
+    [31mCtrl-B d[0m
+
+  [32m- Create a new window (inside a tmux session):[0m
+    [31mCtrl-B c[0m
+
+  [32m- Switch between sessions and windows (inside a tmux session):[0m
+    [31mCtrl-B w[0m
+
+  [32m- Kill a session by name:[0m
+    [31mtmux kill-session -t [0mname[0m[31m[0m
+
+
+  [1mfzf[0m
+
+  Command-line fuzzy finder.[0m
+  Similar to `sk`.[0m
+  More information: https://github.com/junegunn/fzf.[0m
+
+  [32m- Start fzf on all files in the specified directory:[0m
+    [31mfind [0mpath/to/directory[0m[31m -type f | fzf[0m
+
+  [32m- Start fzf for running processes:[0m
+    [31mps aux | fzf[0m
+
+  [32m- Select multiple files with `Shift + Tab` and write to a file:[0m
+    [31mfind [0mpath/to/directory[0m[31m -type f | fzf --multi > [0mfilename[0m[31m[0m
+
+  [32m- Start fzf with a specified query:[0m
+    [31mfzf --query "[0mquery[0m[31m"[0m
+
+  [32m- Start fzf on entries that start with core and end with either go, rb, or py:[0m
+    [31mfzf --query "^core go$ | rb$ | py$"[0m
+
+  [32m- Start fzf on entries that not match pyc and match exactly travis:[0m
+    [31mfzf --query "!pyc 'travis"[0m
+
+
+  [1mpacman[0m
+
+  Arch Linux package manager utility.[0m
+  Some subcommands such as `pacman sync` have their own usage documentation.[0m
+  More information: https://man.archlinux.org/man/pacman.8.[0m
+
+  [32m- Synchronize and update all packages:[0m
+    [31msudo pacman --sync --refresh --sysupgrade[0m
+
+  [32m- Install a new package:[0m
+    [31msudo pacman --sync [0mpackage_name[0m[31m[0m
+
+  [32m- Remove a package and its dependencies:[0m
+    [31msudo pacman --remove --recursive [0mpackage_name[0m[31m[0m
+
+  [32m- Search the package database for a regular expression or keyword:[0m
+    [31mpacman --sync --search "[0msearch_pattern[0m[31m"[0m
+
+  [32m- List installed packages and versions:[0m
+    [31mpacman --query[0m
+
+  [32m- List only the explicitly installed packages and versions:[0m
+    [31mpacman --query --explicit[0m
+
+  [32m- List orphan packages (installed as dependencies but not actually required by any package):[0m
+    [31mpacman --query --unrequired --deps --quiet[0m
+
+  [32m- Empty the entire pacman cache:[0m
+    [31msudo pacman --sync --clean --clean[0m
+

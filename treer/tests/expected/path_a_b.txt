@@ -1,0 +1,6 @@
+tests/inputs/a/b
+├── b.csv
+└── c
+    └── c.mp3
+
+2 directories, 2 files
