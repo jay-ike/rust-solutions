@@ -1,0 +1,8 @@
+tests/inputs
+├── a
+│   └── b
+├── d
+│   └── e
+└── f
+
+6 directories

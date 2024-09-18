@@ -88,3 +88,18 @@ fn path_a_b_d_depth_2() -> MyResult<()> {
         "tests/expected/path_a_b_d_depth_2.txt",
     )
 }
+#[test]
+fn show_dir_only() -> MyResult<()> {
+    run(&["tests/inputs", "-d"], "tests/expected/dir_only.txt")
+}
+#[test]
+fn path_a_b_d_dir_only() -> MyResult<()> {
+    run(
+        &["tests/inputs/a/b", "tests/inputs/d", "-d"],
+        "tests/expected/path_a_b_d_dir_only.txt",
+    )
+}
+#[test]
+fn depth_2_dir_only() -> MyResult<()> {
+    run(&["tests/inputs", "-d", "-L", "2"], "tests/expected/depth_2_dir_only.txt")
+}

@@ -1,0 +1,6 @@
+tests/inputs/a/b
+└── c
+tests/inputs/d
+└── e
+
+4 directories

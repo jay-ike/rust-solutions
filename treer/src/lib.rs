@@ -7,6 +7,7 @@ pub type MyResult<T> = Result<T, Box<dyn Error>>;
 #[derive(Debug)]
 pub struct Config {
     depth: Option<usize>,
+    dir_only: bool,
     paths: Vec<String>,
 }
 
@@ -31,9 +32,16 @@ pub fn get_args() -> MyResult<Config> {
                 .short('L')
                 .action(ArgAction::Set),
         )
+        .arg(
+            Arg::new("dir_only")
+                .help("show only directories")
+                .short('d')
+                .action(ArgAction::SetTrue),
+        )
         .get_matches();
     Ok(Config {
         depth: matches.get_one::<usize>("depth").copied(),
+        dir_only: matches.get_flag("dir_only"),
         paths: matches
             .get_many::<String>("dir")
             .unwrap_or_default()
@@ -50,7 +58,15 @@ pub fn run(config: Config) -> MyResult<()> {
         total_dirs += dirs;
         total_files += files;
     }
-    println!("\n{} directories, {} files", total_dirs, total_files);
+    println!(
+        "\n{} directories{}",
+        total_dirs,
+        if config.dir_only {
+            "".to_string()
+        } else {
+            format!(", {} files", total_files)
+        }
+    );
     Ok(())
 }
 
@@ -67,6 +83,7 @@ fn visit_dir(
         .max_depth(1)
         .sort_by_file_name()
         .into_iter()
+        .filter_entry(|e| !config.dir_only || e.file_type().is_dir() && config.dir_only)
         .filter_map(|e| match e {
             Err(e) => {
                 eprintln!("{}", e);
