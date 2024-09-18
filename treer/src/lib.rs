@@ -36,7 +36,7 @@ pub fn run(config: Config) -> MyResult<()> {
     let mut total_files: usize = 0;
     for path in &config.paths {
         println!("{}", path);
-        let (dirs, files) = visit_dir(path, 1, 0, 1, true);
+        let (dirs, files) = visit_dir(path, 1, true, "".to_string());
         total_dirs += dirs;
         total_files += files;
     }
@@ -44,15 +44,9 @@ pub fn run(config: Config) -> MyResult<()> {
     Ok(())
 }
 
-fn visit_dir(
-    path: &str,
-    prev_dir: usize,
-    prev_files: usize,
-    depth: usize,
-    hide_root: bool,
-) -> (usize, usize) {
+fn visit_dir(path: &str, depth: usize, ancestor_end: bool, ancestor_bar: String) -> (usize, usize) {
     let mut files: usize = 0;
-    let mut dirs: usize = 0;
+    let mut dirs: usize = 1;
     let mut entries = WalkDir::new(path)
         .min_depth(1)
         .max_depth(1)
@@ -68,35 +62,31 @@ fn visit_dir(
         .peekable();
     while let Some(entry) = entries.next() {
         let name = entry.file_name().to_str().unwrap();
-        let mut sym: &str = "├──";
-        let space = (depth - 1) * 4;
-        let root_line = if depth < 2 {
-            "".to_string()
-        } else {
-            format!("{:<s$}", if !hide_root { "│" } else { "" }, s = space)
-        };
         let is_end = entries.peek().is_none();
-        if is_end {
-            sym = "└──";
-        }
+        let sym = if is_end { "└──" } else { "├──" };
         if entry.file_type().is_dir() {
-            println!("{}{} {}", root_line, sym, name);
+            let next_bar = format!(
+                "{}{:<s$}",
+                ancestor_bar,
+                if is_end { "" } else { "│" },
+                s = 4
+            );
+            println!("{}{} {}", ancestor_bar, sym, name);
             let (next_dir, next_file) = visit_dir(
                 entry.path().to_str().unwrap_or_default(),
-                1,
-                0,
                 depth + 1,
-                hide_root && is_end,
+                ancestor_end && is_end,
+                next_bar,
             );
             dirs += next_dir;
             files += next_file;
         } else if entry.file_type().is_file() {
-            println!("{}{} {}", root_line, sym, name);
+            println!("{}{} {}", ancestor_bar, sym, name);
             files += 1;
         } else if entry.file_type().is_symlink() {
             println!(
                 "{}{} {}",
-                root_line,
+                ancestor_bar,
                 sym,
                 format!(
                     "{} -> {}",
@@ -110,5 +100,5 @@ fn visit_dir(
             files += 1;
         }
     }
-    (dirs + prev_dir, files + prev_files)
+    (dirs, files)
 }
