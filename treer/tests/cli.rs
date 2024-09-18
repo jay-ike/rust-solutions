@@ -77,3 +77,14 @@ fn path_a_b_d() -> MyResult<()> {
         "tests/expected/path_a_b_d.txt",
     )
 }
+#[test]
+fn depth_2() -> MyResult<()> {
+    run(&["tests/inputs", "-L", "2"], "tests/expected/depth_2.txt")
+}
+#[test]
+fn path_a_b_d_depth_2() -> MyResult<()> {
+    run(
+        &["tests/inputs/a/b", "tests/inputs/d", "-L", "2"],
+        "tests/expected/path_a_b_d_depth_2.txt",
+    )
+}

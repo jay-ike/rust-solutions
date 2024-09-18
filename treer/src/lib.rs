@@ -6,6 +6,7 @@ pub type MyResult<T> = Result<T, Box<dyn Error>>;
 
 #[derive(Debug)]
 pub struct Config {
+    depth: Option<usize>,
     paths: Vec<String>,
 }
 
@@ -22,8 +23,17 @@ pub fn get_args() -> MyResult<Config> {
                 .help("directories to print the tree")
                 .action(ArgAction::Set),
         )
+        .arg(
+            Arg::new("depth")
+                .value_name("LEVEL")
+                .value_parser(value_parser!(usize))
+                .help("maximum depth level of the tree")
+                .short('L')
+                .action(ArgAction::Set),
+        )
         .get_matches();
     Ok(Config {
+        depth: matches.get_one::<usize>("depth").copied(),
         paths: matches
             .get_many::<String>("dir")
             .unwrap_or_default()
@@ -36,7 +46,7 @@ pub fn run(config: Config) -> MyResult<()> {
     let mut total_files: usize = 0;
     for path in &config.paths {
         println!("{}", path);
-        let (dirs, files) = visit_dir(path, 1, true, "".to_string());
+        let (dirs, files) = visit_dir(&config, path, 1, true, "".to_string());
         total_dirs += dirs;
         total_files += files;
     }
@@ -44,9 +54,14 @@ pub fn run(config: Config) -> MyResult<()> {
     Ok(())
 }
 
-fn visit_dir(path: &str, depth: usize, ancestor_end: bool, ancestor_bar: String) -> (usize, usize) {
-    let mut files: usize = 0;
-    let mut dirs: usize = 1;
+fn visit_dir(
+    config: &Config,
+    path: &str,
+    depth: usize,
+    ancestor_end: bool,
+    ancestor_bar: String,
+) -> (usize, usize) {
+    let mut res: (usize, usize) = (1, 0);
     let mut entries = WalkDir::new(path)
         .min_depth(1)
         .max_depth(1)
@@ -72,17 +87,21 @@ fn visit_dir(path: &str, depth: usize, ancestor_end: bool, ancestor_bar: String)
                 s = 4
             );
             println!("{}{} {}", ancestor_bar, sym, name);
-            let (next_dir, next_file) = visit_dir(
-                entry.path().to_str().unwrap_or_default(),
-                depth + 1,
-                ancestor_end && is_end,
-                next_bar,
-            );
-            dirs += next_dir;
-            files += next_file;
+            if config.depth.is_none() || config.depth.is_some_and(|d| d > depth) {
+                let (next_dir, next_file) = visit_dir(
+                    config,
+                    entry.path().to_str().unwrap_or_default(),
+                    depth + 1,
+                    ancestor_end && is_end,
+                    next_bar,
+                );
+                res = (res.0 + next_dir, res.1 + next_file);
+            } else {
+                res.0 += 1;
+            }
         } else if entry.file_type().is_file() {
             println!("{}{} {}", ancestor_bar, sym, name);
-            files += 1;
+            res.1 += 1;
         } else if entry.file_type().is_symlink() {
             println!(
                 "{}{} {}",
@@ -97,8 +116,8 @@ fn visit_dir(path: &str, depth: usize, ancestor_end: bool, ancestor_bar: String)
                         .unwrap()
                 )
             );
-            files += 1;
+            res.1 += 1;
         }
     }
-    (dirs, files)
+    res
 }

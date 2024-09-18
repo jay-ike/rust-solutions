@@ -1,0 +1,14 @@
+tests/inputs
+├── a
+│   ├── a.txt
+│   └── b
+├── d
+│   ├── b.csv -> ../a/b.csv
+│   ├── d.tsv
+│   ├── d.txt
+│   └── e
+├── f
+│   └── f.txt
+└── g.csv
+
+6 directories, 6 files
