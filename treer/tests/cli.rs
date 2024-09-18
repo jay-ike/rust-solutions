@@ -101,5 +101,29 @@ fn path_a_b_d_dir_only() -> MyResult<()> {
 }
 #[test]
 fn depth_2_dir_only() -> MyResult<()> {
-    run(&["tests/inputs", "-d", "-L", "2"], "tests/expected/depth_2_dir_only.txt")
+    run(
+        &["tests/inputs", "-d", "-L", "2"],
+        "tests/expected/depth_2_dir_only.txt",
+    )
+}
+#[test]
+fn path1_show_size() -> MyResult<()> {
+    run(
+        &["tests/inputs", "--hint-size"],
+        "tests/expected/path1_with_size.txt",
+    )
+}
+#[test]
+fn path_a_b_d_show_size() -> MyResult<()> {
+    run(
+        &["tests/inputs/a/b", "tests/inputs/d", "--hint-size"],
+        "tests/expected/path_a_b_d_show_size.txt",
+    )
+}
+#[test]
+fn dir_only_with_size() -> MyResult<()> {
+    run(
+        &["tests/inputs", "-d", "--hint-size"],
+        "tests/expected/dir_only_with_size.txt",
+    )
 }

@@ -1,0 +1,12 @@
+[4.0K]  tests/inputs/a/b
+├── [   2]  b.csv
+└── [4.0K]  c
+    └── [   2]  c.mp3
+[4.0K]  tests/inputs/d
+├── [  10]  b.csv -> ../a/b.csv
+├── [   2]  d.tsv
+├── [   2]  d.txt
+└── [4.0K]  e
+    └── [   2]  e.mp3
+
+4 directories, 6 files
