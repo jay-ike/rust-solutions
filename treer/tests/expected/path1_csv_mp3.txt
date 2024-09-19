@@ -1,0 +1,14 @@
+tests/inputs
+├── a
+│   └── b
+│       ├── b.csv
+│       └── c
+│           └── c.mp3
+├── d
+│   ├── b.csv -> ../a/b.csv
+│   └── e
+│       └── e.mp3
+├── f
+└── g.csv
+
+7 directories, 5 files

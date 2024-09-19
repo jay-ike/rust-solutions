@@ -1,4 +1,5 @@
 use clap::{value_parser, Arg, ArgAction, Command};
+use regex::Regex;
 use std::{error::Error, fs};
 use walkdir::{DirEntry, WalkDir};
 
@@ -8,6 +9,7 @@ pub type MyResult<T> = Result<T, Box<dyn Error>>;
 pub struct Config {
     depth: Option<usize>,
     dir_only: bool,
+    patterns: Vec<Regex>,
     paths: Vec<String>,
     show_size: bool,
 }
@@ -33,7 +35,7 @@ impl SizeUnit {
     }
 }
 impl ToString for SizeUnit {
-   fn to_string(&self) -> String {
+    fn to_string(&self) -> String {
         match self {
             SizeUnit::K => "K".to_string(),
             SizeUnit::M => "M".to_string(),
@@ -41,7 +43,7 @@ impl ToString for SizeUnit {
             SizeUnit::T => "T".to_string(),
             SizeUnit::P => "P".to_string(),
         }
-   }
+    }
 }
 
 impl Config {
@@ -113,12 +115,31 @@ pub fn get_args() -> MyResult<Config> {
             Arg::new("dir_only")
                 .help("show only directories")
                 .short('d')
+                .long("dir-only")
                 .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("pattern")
+                .help("show each file matching the given pattern")
+                .num_args(1..)
+                .short('P')
+                .long("pattern")
+                .value_parser(value_parser!(String))
+                .action(ArgAction::Append)
+                .conflicts_with("dir_only"),
         )
         .get_matches();
     Ok(Config {
         depth: matches.get_one::<usize>("depth").copied(),
         dir_only: matches.get_flag("dir_only"),
+        patterns: matches
+            .get_many::<String>("pattern")
+            .unwrap_or_default()
+            .map(|s| match Regex::new(s.as_str()) {
+                Ok(re) => re,
+                _ => unimplemented!("ivalid value: {}", s),
+            })
+            .collect(),
         paths: matches
             .get_many::<String>("dir")
             .unwrap_or_default()
@@ -142,7 +163,11 @@ pub fn run(config: Config) -> MyResult<()> {
         if config.dir_only {
             "".to_string()
         } else {
-            format!(", {} files", total_files)
+            format!(
+                ", {} file{}",
+                total_files,
+                if total_files > 1 { "s" } else { "" }
+            )
         }
     );
     Ok(())
@@ -156,6 +181,14 @@ fn visit_dir(
     ancestor_bar: String,
 ) -> (usize, usize) {
     let mut res: (usize, usize) = (1, 0);
+    let pattern_filter = |entry: &DirEntry| -> bool {
+        config.patterns.is_empty()
+            || entry.file_type().is_dir()
+            || config
+                .patterns
+                .iter()
+                .any(|re| re.is_match(entry.file_name().to_str().unwrap_or_default()))
+    };
     let mut entries = WalkDir::new(path)
         .min_depth(1)
         .max_depth(1)
@@ -169,6 +202,7 @@ fn visit_dir(
             }
             Ok(entry) => Some(entry),
         })
+        .filter(pattern_filter)
         .peekable();
     while let Some(entry) = entries.next() {
         let name = entry.file_name().to_str().unwrap();

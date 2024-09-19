@@ -127,3 +127,28 @@ fn dir_only_with_size() -> MyResult<()> {
         "tests/expected/dir_only_with_size.txt",
     )
 }
+#[test]
+fn path1_csv_mp3() -> MyResult<()> {
+    run(
+        &["tests/inputs", "-P", ".*csv","-P", ".*mp3"],
+        "tests/expected/path1_csv_mp3.txt"
+    )
+}
+#[test]
+fn die_on_pattern_and_dir_only() -> MyResult<()> {
+    let msg = "the argument '--pattern <pattern>...' cannot be \
+        used with '--dir-only'";
+    Command::cargo_bin(PRG)?
+        .args(["-P", "\\*csv", "-d"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(msg));
+    Ok(())
+}
+#[test]
+fn depth_2_with_size_a() -> MyResult<()> {
+    run(
+        &["tests/inputs", "-P", ".*tsv", "--hint-size", "-L", "2"],
+        "tests/expected/depth_2_tsv_with_size.txt"
+    )
+}

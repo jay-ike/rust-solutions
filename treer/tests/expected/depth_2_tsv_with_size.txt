@@ -1,0 +1,9 @@
+[4.0K]  tests/inputs
+├── [4.0K]  a
+│   └── [4.0K]  b
+├── [4.0K]  d
+│   ├── [   2]  d.tsv
+│   └── [4.0K]  e
+└── [4.0K]  f
+
+6 directories, 1 file
