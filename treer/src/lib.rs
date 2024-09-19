@@ -11,6 +11,7 @@ pub struct Config {
     dir_only: bool,
     patterns: Vec<Regex>,
     paths: Vec<String>,
+    size: Option<String>,
     show_size: bool,
 }
 
@@ -24,6 +25,10 @@ enum SizeUnit {
 }
 
 impl SizeUnit {
+    fn is_parsable(val: &str) -> bool {
+        let re = Regex::new(r"^(?<sign>[-+])?(?<factor>\d+)(?<unit>[KMGTP])?$").unwrap();
+        re.is_match(val)
+    }
     fn next_unit(&self) -> SizeUnit {
         match self {
             SizeUnit::K => SizeUnit::M,
@@ -48,7 +53,7 @@ impl ToString for SizeUnit {
 
 impl Config {
     pub fn hint_size(&self) -> bool {
-        self.show_size
+        self.show_size || self.size.is_some()
     }
     pub fn path_size(&self, path: &str) -> String {
         if let Ok(meta) = fs::metadata(path) {
@@ -95,7 +100,8 @@ pub fn get_args() -> MyResult<Config> {
                 .value_name("DIR")
                 .value_parser(value_parser!(String))
                 .help("directories to print the tree")
-                .action(ArgAction::Set),
+                .action(ArgAction::Set)
+                .default_value("."),
         )
         .arg(
             Arg::new("depth")
@@ -112,6 +118,22 @@ pub fn get_args() -> MyResult<Config> {
                 .action(ArgAction::SetTrue),
         )
         .arg(
+            Arg::new("file-size")
+                .help("file size to show")
+                .short('s')
+                .long("file-size")
+                .allow_hyphen_values(true)
+                .action(ArgAction::Set)
+                .value_parser(|s: &str| match SizeUnit::is_parsable(s) {
+                    true => Ok(s.to_string()),
+                    _ => Err(format!(
+                        "invalid value '{}' for argument --file-size <file-size>",
+                        s
+                    )),
+                })
+                .conflicts_with("dir_only"),
+        )
+        .arg(
             Arg::new("dir_only")
                 .help("show only directories")
                 .short('d')
@@ -124,7 +146,10 @@ pub fn get_args() -> MyResult<Config> {
                 .num_args(1..)
                 .short('P')
                 .long("pattern")
-                .value_parser(value_parser!(String))
+                .value_parser(|s: &str| match Regex::new(s) {
+                    Ok(_) => Ok(s.to_string()),
+                    Err(_) => Err(format!("error invalid value '{}'", s)),
+                })
                 .action(ArgAction::Append)
                 .conflicts_with("dir_only"),
         )
@@ -137,14 +162,16 @@ pub fn get_args() -> MyResult<Config> {
             .unwrap_or_default()
             .map(|s| match Regex::new(s.as_str()) {
                 Ok(re) => re,
-                _ => unimplemented!("ivalid value: {}", s),
+                _ => panic!("error: ivalid value '{}'", s),
             })
+            .into_iter()
             .collect(),
         paths: matches
             .get_many::<String>("dir")
             .unwrap_or_default()
             .map(|v| v.to_string())
             .collect(),
+        size: matches.get_one::<String>("file-size").cloned(),
         show_size: matches.get_flag("hint_size"),
     })
 }
@@ -173,6 +200,46 @@ pub fn run(config: Config) -> MyResult<()> {
     Ok(())
 }
 
+fn get_size_filter(size: Option<String>, file_size: usize) -> bool {
+    let re = Regex::new(r"^(?<sign>[+-])?(?<factor>\d+)(?<unit>[KMGTP])?$").unwrap();
+    let caps;
+    let val;
+    let factor;
+    if size.is_none() {
+        return true;
+    }
+    val = size.unwrap();
+    if !re.is_match(val.as_str()) {
+        return false;
+    }
+    caps = re.captures(val.as_str()).expect("failed to capture group");
+    factor = caps
+        .name("factor")
+        .expect("no factor in size")
+        .as_str()
+        .parse::<usize>()
+        .unwrap();
+    let request_size: usize = factor
+        * match caps.name("unit") {
+            None => 1,
+            Some(name) => match name.as_str() {
+                "K" => 1024,
+                "M" => 1024 * 1024,
+                "G" => 1024 * 1024 * 1024,
+                "T" => 1024 * 1024 * 1024 * 1024,
+                "P" => 1024 * 1024 * 1024 * 1024 * 1024,
+                e => unreachable!("unsupported unit '{}'", e),
+            },
+        };
+    match caps.name("sign") {
+        None => file_size.eq(&request_size),
+        Some(symbol) => match symbol.as_str() {
+            "+" => file_size.gt(&request_size),
+            "-" => file_size.lt(&request_size),
+            s => unreachable!("unsupported symbol '{}'", s),
+        },
+    }
+}
 fn visit_dir(
     config: &Config,
     path: &str,
@@ -187,7 +254,7 @@ fn visit_dir(
             || config
                 .patterns
                 .iter()
-                .any(|re| re.is_match(entry.file_name().to_str().unwrap_or_default()))
+                .any(|re| re.is_match(entry.file_name().to_str().unwrap()))
     };
     let mut entries = WalkDir::new(path)
         .min_depth(1)
@@ -203,6 +270,10 @@ fn visit_dir(
             Ok(entry) => Some(entry),
         })
         .filter(pattern_filter)
+        .filter(|e| get_size_filter(config.size.clone(), match e.metadata() {
+            Ok(data) => data.len().try_into().unwrap(),
+            _ => 0
+        }) || e.file_type().is_dir())
         .peekable();
     while let Some(entry) = entries.next() {
         let name = entry.file_name().to_str().unwrap();

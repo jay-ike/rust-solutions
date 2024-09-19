@@ -1,18 +1,12 @@
 [4.0K]  tests/inputs
 ├── [4.0K]  a
-│   ├── [7.3K]  a.txt
 │   └── [4.0K]  b
-│       ├── [   2]  b.csv
-│       └── [4.0K]  c
-│           └── [   2]  c.mp3
 ├── [4.0K]  d
 │   ├── [  10]  b.csv -> ../a/b.csv
 │   ├── [   2]  d.tsv
-│   ├── [6.0K]  d.txt
 │   └── [4.0K]  e
-│       └── [   2]  e.mp3
 ├── [4.0K]  f
 │   └── [   2]  f.txt
 └── [   2]  g.csv
 
-7 directories, 9 files
+6 directories, 4 files

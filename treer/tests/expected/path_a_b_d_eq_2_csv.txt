@@ -1,0 +1,7 @@
+[4.0K]  tests/inputs/a/b
+├── [   2]  b.csv
+└── [4.0K]  c
+[4.0K]  tests/inputs/d
+└── [4.0K]  e
+
+4 directories, 1 file

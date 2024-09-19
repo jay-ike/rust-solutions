@@ -5,7 +5,7 @@
 [4.0K]  tests/inputs/d
 ├── [  10]  b.csv -> ../a/b.csv
 ├── [   2]  d.tsv
-├── [   2]  d.txt
+├── [6.0K]  d.txt
 └── [4.0K]  e
     └── [   2]  e.mp3
 

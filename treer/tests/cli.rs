@@ -130,8 +130,8 @@ fn dir_only_with_size() -> MyResult<()> {
 #[test]
 fn path1_csv_mp3() -> MyResult<()> {
     run(
-        &["tests/inputs", "-P", ".*csv","-P", ".*mp3"],
-        "tests/expected/path1_csv_mp3.txt"
+        &["tests/inputs", "-P", ".*csv", "-P", ".*mp3"],
+        "tests/expected/path1_csv_mp3.txt",
     )
 }
 #[test]
@@ -146,9 +146,67 @@ fn die_on_pattern_and_dir_only() -> MyResult<()> {
     Ok(())
 }
 #[test]
+fn die_on_invalid_pattern() -> MyResult<()> {
+    Command::cargo_bin(PRG)?
+        .args(["-P", "*.csv"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error: invalid value '*.csv'"));
+    Ok(())
+}
+#[test]
+fn die_on_invalid_size_unit() -> MyResult<()> {
+    let msg = "invalid value '+4L' for argument --file-size <file-size>";
+    Command::cargo_bin(PRG)?
+        .args(["-s", "+4L"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(msg));
+    Ok(())
+}
+#[test]
+fn die_on_size_filter_and_dir_only() -> MyResult<()> {
+    let msg = "the argument '--file-size <file-size>' cannot be \
+        used with '--dir-only'";
+    Command::cargo_bin(PRG)?
+        .args(["-s", "-8K", "-d"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(msg));
+    Ok(())
+}
+#[test]
 fn depth_2_with_size_a() -> MyResult<()> {
     run(
         &["tests/inputs", "-P", ".*tsv", "--hint-size", "-L", "2"],
-        "tests/expected/depth_2_tsv_with_size.txt"
+        "tests/expected/depth_2_tsv_with_size.txt",
+    )
+}
+#[test]
+fn path1_with_size_gt_1k() -> MyResult<()> {
+    run(
+        &["tests/inputs", "-s", "+1K"],
+        "tests/expected/path1_with_size_gt_1k.txt",
+    )
+}
+#[test]
+fn depth_2_lt_1k() -> MyResult<()> {
+    run(
+        &["tests/inputs", "-s", "-1K", "-L", "2"],
+        "tests/expected/path1_depth_2_lt_1k.txt",
+    )
+}
+#[test]
+fn path_a_b_d_eq_2_csv() -> MyResult<()> {
+    run(
+        &[
+            "tests/inputs/a/b",
+            "tests/inputs/d",
+            "-s",
+            "2",
+            "-P",
+            ".*csv",
+        ],
+        "tests/expected/path_a_b_d_eq_2_csv.txt",
     )
 }

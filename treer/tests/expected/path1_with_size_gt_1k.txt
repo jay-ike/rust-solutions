@@ -1,0 +1,11 @@
+[4.0K]  tests/inputs
+├── [4.0K]  a
+│   ├── [7.3K]  a.txt
+│   └── [4.0K]  b
+│       └── [4.0K]  c
+├── [4.0K]  d
+│   ├── [6.0K]  d.txt
+│   └── [4.0K]  e
+└── [4.0K]  f
+
+7 directories, 2 files
