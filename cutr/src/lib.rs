@@ -1,7 +1,8 @@
 use crate::Extract::*;
 use clap::{value_parser, Arg, ArgAction, Command};
-use csv::{ReaderBuilder, StringRecord};
+use csv::{ReaderBuilder, StringRecord, WriterBuilder};
 use regex::Regex;
+use std::io::BufWriter;
 use std::num::NonZeroUsize;
 use std::{
     error::Error,
@@ -36,38 +37,34 @@ impl Extract {
 }
 impl Config {
     fn print(&self, reader: &mut Box<dyn BufRead>) {
-        let mut buffer = String::new();
         match &self.extract {
-            Bytes(ranges) | Chars(ranges) => loop {
-                let bytes = reader.read_line(&mut buffer).unwrap();
-                if bytes == 0 {
-                    break;
-                }
-                println!(
-                    "{}",
-                    if self.extract.is_bytes() {
-                        extract_bytes(buffer.as_str(), ranges)
-                    } else {
-                        extract_chars(buffer.as_str(), ranges)
+            Bytes(ranges) | Chars(ranges) => {
+                for line in reader.lines() {
+                    if let Ok(content) = line {
+                        println!(
+                            "{}",
+                            if self.extract.is_bytes() {
+                                extract_bytes(content.as_str(), ranges)
+                            } else {
+                                extract_chars(content.as_str(), ranges)
+                            }
+                        );
                     }
-                );
-                buffer.clear();
-            },
+                }
+            }
             Fields(ranges) => {
                 let mut delim_reader = ReaderBuilder::new()
                     .has_headers(false)
                     .delimiter(self.delimiter)
                     .from_reader(reader);
+
+                let mut writer = WriterBuilder::new()
+                    .delimiter(self.delimiter)
+                    .has_headers(false)
+                    .from_writer(BufWriter::new(std::io::stdout()));
                 for record in delim_reader.records() {
                     if let Ok(line) = record {
-                        println!(
-                            "{}",
-                            extract_fields(&line, ranges).join(
-                                String::from_utf8_lossy(&[self.delimiter])
-                                    .to_string()
-                                    .as_str(),
-                            )
-                        );
+                        _ = writer.write_record(extract_fields(&line, ranges));
                     }
                 }
             }
@@ -204,38 +201,28 @@ fn parse_pos(range: &str) -> MyResult<PositionList> {
 }
 fn extract_chars(line: &str, char_pos: &[Range<usize>]) -> String {
     let chars: Vec<_> = line.chars().collect();
-    let mut result: Vec<char> = vec![];
-    for range in char_pos.iter().cloned() {
-        for i in range {
-            if let Some(value) = chars.get(i) {
-                result.push(*value);
-            }
-        }
-    }
-    result.iter().collect()
+    char_pos
+        .iter()
+        .cloned()
+        .flat_map(|range| range.filter_map(|i| chars.get(i)))
+        .collect()
 }
 fn extract_bytes(line: &str, byte_pos: &[Range<usize>]) -> String {
     let bytes = line.as_bytes();
-    let mut result: Vec<u8> = vec![];
-    for range in byte_pos.iter().cloned() {
-        for i in range {
-            if let Some(byte) = bytes.get(i) {
-                result.push(*byte);
-            }
-        }
-    }
-    String::from_utf8_lossy(&result).to_string()
+    let result: Vec<_> = byte_pos
+        .iter()
+        .cloned()
+        .flat_map(|range| range.filter_map(|i| bytes.get(i).copied()))
+        .collect();
+    String::from_utf8_lossy(&result).into_owned()
 }
 fn extract_fields(record: &StringRecord, field_pos: &[Range<usize>]) -> Vec<String> {
-    let mut result: Vec<String> = vec![];
-    for range in field_pos.iter().cloned() {
-        for i in range {
-            if let Some(field) = record.get(i) {
-                result.push(field.to_string());
-            }
-        }
-    }
-    result
+    field_pos
+        .iter()
+        .cloned()
+        .flat_map(|range| range.filter_map(|i| record.get(i)))
+        .map(String::from)
+        .collect()
 }
 
 #[cfg(test)]
