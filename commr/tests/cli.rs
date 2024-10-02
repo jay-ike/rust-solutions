@@ -16,7 +16,7 @@ fn dies_no_args() -> MyResult<()> {
     Command::cargo_bin(PRG)?
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Usage"));
+        .stderr(predicate::str::contains("STDIN"));
     Ok(())
 }
 

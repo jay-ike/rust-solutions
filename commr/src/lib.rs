@@ -1,5 +1,10 @@
+use crate::Column::*;
 use clap::{value_parser, Arg, ArgAction, Command};
-use std::error::Error;
+use std::cmp::Ordering::*;
+use std::{
+    error::Error,
+    io::{BufRead, BufReader},
+};
 
 pub type MyResult<T> = Result<T, Box<dyn Error>>;
 
@@ -14,6 +19,46 @@ pub struct Config {
     show_col3: bool,
 }
 
+enum Column<'a> {
+    Col1(&'a str),
+    Col2(&'a str),
+    Col3(&'a str),
+}
+
+impl Column<'_> {
+    fn print(self, config: &Config) {
+        let mut columns: Vec<&str> = vec![];
+        match self {
+            Col1(val) => {
+                if config.show_col1 {
+                    columns.push(val);
+                }
+            }
+            Col2(val) => {
+                if config.show_col2 {
+                    if config.show_col1 {
+                        columns.push("");
+                    }
+                    columns.push(val);
+                }
+            }
+            Col3(val) => {
+                if config.show_col3 {
+                    if config.show_col1 {
+                        columns.push("");
+                    }
+                    if config.show_col2 {
+                        columns.push("");
+                    }
+                    columns.push(val);
+                }
+            }
+        }
+        if ! columns.is_empty() {
+            println!("{}", columns.join(config.delimiter.as_str()));
+        }
+    }
+}
 pub fn get_args() -> MyResult<Config> {
     let matches = Command::new("commr")
         .version("0.1.0")
@@ -54,15 +99,17 @@ pub fn get_args() -> MyResult<Config> {
         .arg(
             Arg::new("file1")
                 .value_name("FILE1")
-                .required(true)
+                .default_value("-")
+                .help("Input file 1")
                 .value_parser(value_parser!(String))
                 .action(ArgAction::Set),
         )
         .arg(
             Arg::new("file2")
                 .value_name("FILE2")
-                .required(true)
                 .value_parser(value_parser!(String))
+                .help("Input file 2")
+                .default_value("-")
                 .action(ArgAction::Set),
         )
         .get_matches();
@@ -86,6 +133,65 @@ pub fn get_args() -> MyResult<Config> {
     })
 }
 pub fn run(config: Config) -> MyResult<()> {
-    println!("{:?}", config);
+    let mut file1;
+    let mut file2;
+    let case = |line: String| {
+        if config.insensitive {
+            line.to_lowercase()
+        } else {
+            line
+        }
+    };
+
+    if &config.file1 == "-" && &config.file2 == "-" {
+        return Err("Both input files cannot be STDIN (\"-\")".into());
+    } else {
+        file1 = open(&config.file1)?
+            .lines()
+            .filter_map(Result::ok)
+            .map(case);
+        file2 = open(&config.file2)?
+            .lines()
+            .filter_map(Result::ok)
+            .map(case);
+    }
+    let mut line1 = file1.next();
+    let mut line2 = file2.next();
+    while line1.is_some() || line2.is_some() {
+        match (&line1, &line2) {
+            (Some(val1), Some(val2)) => match val1.cmp(val2) {
+                Less => {
+                    Col1(val1.as_str()).print(&config);
+                    line1 = file1.next();
+                }
+                Greater => {
+                    Col2(val2.as_str()).print(&config);
+                    line2 = file2.next();
+                }
+                Equal => {
+                    Col3(val2.as_str()).print(&config);
+                    line1 = file1.next();
+                    line2 = file2.next();
+                }
+            },
+            (None, Some(val2)) => {
+                Col2(val2.as_str()).print(&config);
+                line2 = file2.next();
+            }
+            (Some(val1), None) => {
+                Col1(val1.as_str()).print(&config);
+                line1 = file1.next();
+            }
+            _ => (),
+        }
+    }
     Ok(())
+}
+fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
+    match filename {
+        "-" => Ok(Box::new(BufReader::new(std::io::stdin()))),
+        _ => Ok(Box::new(BufReader::new(
+            std::fs::File::open(filename).map_err(|e| format!("{}: {}", filename, e))?,
+        ))),
+    }
 }
