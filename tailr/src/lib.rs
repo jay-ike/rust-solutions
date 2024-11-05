@@ -136,9 +136,7 @@ pub fn print_lines(
     num_lines: &TakeValue,
     total_lines: i64,
 ) -> MyResult<()> {
-    let seek_index = get_start_index(num_lines, total_lines);
-    if seek_index.is_some_and(|seek| seek >= 0) {
-        let start_line = seek_index.unwrap();
+    if let Some(start_line) = get_start_index(num_lines, total_lines) {
         let mut buf = String::new();
         let mut line = 0;
         loop {
@@ -161,10 +159,9 @@ pub fn print_bytes<T: Read + Seek>(
     num_bytes: &TakeValue,
     total_bytes: i64,
 ) -> MyResult<()> {
-    let seek_index = get_start_index(num_bytes, total_bytes);
     let mut buf = vec![];
-    if seek_index.is_some_and(|seek| seek >= 0) {
-        file.seek(SeekFrom::Start(seek_index.unwrap() as u64))?;
+    if let Some(seek) = get_start_index(num_bytes, total_bytes) {
+        file.seek(SeekFrom::Start(seek.try_into().unwrap()))?;
         loop {
             let bytes_read = file.read_to_end(&mut buf)?;
             if bytes_read == 0 {
@@ -186,19 +183,12 @@ pub fn get_start_index(take_val: &TakeValue, total: i64) -> Option<i64> {
             None
         }
         TakeNum(val) => {
-            if *val == 0 {
-                return None;
+            if val == &0 || total == 0 || val > &total {
+                None
+            } else {
+                let start = if val < &0 {total + val} else {val-1};
+                Some(if start < 0 {0} else {start.try_into().unwrap()})
             }
-            if val.is_positive() {
-                if *val <= total {
-                    return Some(*val - 1);
-                }
-                return None;
-            }
-            if val + total >= 0 {
-                return Some(val + total);
-            }
-            Some(0)
         }
     }
 }
