@@ -8,6 +8,7 @@ clap = "4.5.16"
 chrono = "0.4"
 itertools = "0.10"
 ansi_term = "0.12"
+regex = "1"
 
 [dev-dependencies]
 assert_cmd = "2.0.16"

@@ -2,7 +2,8 @@ use ansi_term::Style;
 use chrono::{Datelike, Local, NaiveDate};
 use clap::{value_parser, Arg, ArgAction, Command};
 use itertools::{izip, Itertools};
-use std::{error::Error, str::FromStr, usize};
+use regex::Regex;
+use std::{error::Error, str::FromStr, u32, usize};
 
 pub type MyResult<T> = Result<T, Box<dyn Error>>;
 
@@ -24,7 +25,7 @@ const MONTH_NAMES: [&str; 12] = [
 
 #[derive(Debug)]
 pub struct Config {
-    month: Option<u32>,
+    month: Option<Vec<u32>>,
     year: i32,
     today: NaiveDate,
 }
@@ -41,7 +42,7 @@ pub fn get_args() -> MyResult<Config> {
                 .value_name("MONTH")
                 .conflicts_with("current-year")
                 .help("month name or number (1-12)")
-                .value_parser(|v: &str| -> Result<u32, String> { parse_month(v) })
+                .value_parser(|v: &str| -> Result<Vec<u32>, String> { parse_month(v) })
                 .action(ArgAction::Set),
         )
         .arg(
@@ -67,25 +68,20 @@ pub fn get_args() -> MyResult<Config> {
                 .action(ArgAction::Set),
         )
         .get_matches();
+    let mut month = matches.get_one("month").cloned();
+    let mut year = matches.get_one("year").copied();
     if matches.get_flag("current-year") {
-        Ok(Config {
-            month: None,
-            year: today.year(),
-            today: today.date_naive(),
-        })
-    } else {
-        Ok(Config {
-            month: matches
-                .get_one("month")
-                .copied()
-                .or_else(|| Some(today.month())),
-            year: matches
-                .get_one("year")
-                .copied()
-                .unwrap_or_else(|| today.year()),
-            today: today.date_naive(),
-        })
+        month = None;
+        year = Some(today.year());
+    } else if month.is_none() && year.is_none() {
+        month = Some([today.month()].to_vec());
+        year = Some(today.year());
     }
+    Ok(Config {
+        month,
+        today: today.date_naive(),
+        year: year.unwrap_or_else(|| today.year())
+    })
 }
 
 pub fn parse_int<T: FromStr>(val: &str) -> MyResult<T> {
@@ -105,23 +101,73 @@ pub fn parse_year(year: &str) -> MyResult<i32> {
         _ => Err(format!("invalid digit found in string").into()),
     }
 }
-
-pub fn parse_month(month: &str) -> Result<u32, String> {
-    let res = parse_int::<u32>(month).or_else(|_| {
-        let res = MONTH_NAMES
-            .into_iter()
-            .enumerate()
-            .filter(|(_, v)| v.to_lowercase().starts_with(&month.to_lowercase()))
-            .exactly_one();
-        match res {
-            Err(_) => Err(format!("Invalid month \"{}\"", &month)),
-            Ok((index, _)) => Ok((index + 1).try_into().unwrap()),
-        }
-    })?;
-    if (1..=12).contains(&res) {
-        Ok(res)
+fn parse_abbreviated_month(month: &str) -> MyResult<u32> {
+    let res: Vec<_> = MONTH_NAMES
+        .into_iter()
+        .enumerate()
+        .filter(|(_, v)| v.to_lowercase().starts_with(&month.to_lowercase()))
+        .map(|(i, _)| i + 1)
+        .collect();
+    if res.len() == 1 {
+        Ok(res[0].try_into().unwrap())
     } else {
-        Err(format!("month \"{}\" not in the range 1 through 12", month).into())
+        Err(format!("Invalid month \"{}\"", &month).into())
+    }
+}
+
+fn parse_range(range: &str) -> MyResult<Vec<u32>> {
+    let re = Regex::new(r"^(\w+)-(\w+)$").unwrap();
+    let err = format!("Invalid range \"{}\"", range);
+    re.captures(range)
+        .ok_or(err.clone().into())
+        .and_then(|captures| {
+            let r1 = parse_int::<u32>(&captures[1])
+                .or_else(|_| parse_abbreviated_month(&captures[1]))?;
+            let r2 = parse_int::<u32>(&captures[2])
+                .or_else(|_| parse_abbreviated_month(&captures[2]))?;
+            if !(1..12).contains(&r1) || !(1..12).contains(&r2) {
+                return Err(err.into());
+            }
+            if r1 <= r2 {
+                Ok((r1..=r2).into_iter().collect_vec())
+            } else {
+                Err(format!(
+                    "Invalid month range: \"{}\" {} should come after {}",
+                    range, &captures[1], &captures[2]
+                )
+                .into())
+            }
+        })
+}
+
+pub fn parse_month(month: &str) -> Result<Vec<u32>, String> {
+    let mut errors: Vec<_> = vec![];
+    let months: Vec<u32> = month
+        .split(",")
+        .map(|m| {
+            if m.contains("-") {
+                parse_range(m)
+            } else {
+                parse_int::<u32>(m)
+                    .or_else(|_| parse_abbreviated_month(m))
+                    .and_then(|res| {
+                        if (1..=12).contains(&res) {
+                            Ok([res].to_vec())
+                        } else {
+                            Err(format!("month \"{}\" not in the range 1 through 12", m).into())
+                        }
+                    })
+            }
+        })
+        .filter_map(|r| r.inspect_err(|e| errors.push(e.to_string())).ok())
+        .flatten()
+        .sorted()
+        .dedup()
+        .collect();
+    if months.len() <= 0 {
+        Err(format!("{}", errors.join("\n")))
+    } else {
+        Ok(months)
     }
 }
 
@@ -161,7 +207,7 @@ pub fn format_month(year: i32, month: u32, print_year: bool, today: NaiveDate) -
         ));
     }
     while lines.len() < 8 {
-       lines.push(" ".repeat(LINE_WIDTH));
+        lines.push(" ".repeat(LINE_WIDTH));
     }
     lines
 }
@@ -179,30 +225,36 @@ pub fn last_day_in_month(year: i32, month: u32) -> NaiveDate {
 }
 
 pub fn run(config: Config) -> MyResult<()> {
+    let months: Vec<_>;
     match config.month {
         Some(month) => {
-            let lines = format_month(config.year, month, true, config.today);
-            println!("{}", lines.join("\n"));
+            months = month
+                .into_iter()
+                .map(|m| format_month(config.year, m, true, config.today))
+                .collect();
         }
         None => {
             println!("{:>32}", config.year);
-            let months: Vec<_> = (1..=12)
+            months = (1..=12)
                 .into_iter()
-                .map(|month| {
-                    format_month(config.year, month, false, config.today)
-                })
+                .map(|month| format_month(config.year, month, false, config.today))
                 .collect();
-            for (i, chunk) in months.chunks(3).enumerate() {
-                if let [m1, m2, m3] = chunk {
-                    for line in izip!(m1, m2, m3) {
-                        println!("{}{}{}", line.0, line.1, line.2);
-                    }
-                    if i < 3 {
-                        println!();
-                    }
-                }
+        }
+    }
+    for (i, chunk) in months.chunks(3).enumerate() {
+        if let [m1, m2, m3] = chunk {
+            for line in izip!(m1, m2, m3) {
+                println!("{}{}{}", line.0, line.1, line.2);
             }
-
+            if i < 3 && months.len() > 3 {
+                println!();
+            }
+        } else if let [m1, m2] = chunk {
+            for line in izip!(m1, m2) {
+                println!("{}{}", line.0, line.1);
+            }
+        } else if let [m1] = chunk {
+            println!("{}", m1.join("\n"));
         }
     }
     Ok(())
@@ -257,13 +309,25 @@ mod tests {
     fn test_parse_month() {
         let res = parse_month("1");
         assert!(res.is_ok());
-        assert_eq!(res.unwrap(), 1u32);
+        assert_eq!(res.unwrap(), [1u32]);
         let res = parse_month("12");
         assert!(res.is_ok());
-        assert_eq!(res.unwrap(), 12u32);
+        assert_eq!(res.unwrap(), [12u32]);
         let res = parse_month("jan");
         assert!(res.is_ok());
-        assert_eq!(res.unwrap(), 1u32);
+        assert_eq!(res.unwrap(), [1u32]);
+        let res = parse_month("4,jan,jul-sep");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), [1, 4, 7, 8, 9]);
+        let res = parse_month("8-4");
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Invalid month range: \"8-4\" 8 should come after 4"
+        );
+        let res = parse_month("4,apr,2-6");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), [2, 3, 4, 5, 6]);
         let res = parse_month("0");
         assert!(res.is_err());
         assert_eq!(
