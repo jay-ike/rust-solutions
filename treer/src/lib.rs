@@ -1,6 +1,10 @@
 use clap::{value_parser, Arg, ArgAction, Command};
 use regex::Regex;
-use std::{error::Error, fs};
+use std::{
+    error::Error,
+    fs::{metadata, read_link, Metadata},
+    os::unix::fs::PermissionsExt,
+};
 use walkdir::{DirEntry, WalkDir};
 
 pub type MyResult<T> = Result<T, Box<dyn Error>>;
@@ -13,6 +17,7 @@ pub struct Config {
     paths: Vec<String>,
     size: Option<String>,
     size_printer: Option<SizePrinter>,
+    show_perms: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -24,10 +29,26 @@ enum SizeUnit {
     P,
 }
 
+enum Owner {
+    User,
+    Group,
+    Other,
+}
+
 #[derive(Debug)]
 enum SizePrinter {
     Bytes,
     Human,
+}
+
+impl Owner {
+    fn get_masks(&self) -> &[u32; 3] {
+        match &self {
+            Owner::User => &[0o400, 0o200, 0o100],
+            Owner::Group => &[0o040, 0o020, 0o010],
+            Owner::Other => &[0o004, 0o002, 0o001],
+        }
+    }
 }
 
 impl SizePrinter {
@@ -72,21 +93,33 @@ impl ToString for SizeUnit {
 }
 
 impl Config {
-    pub fn path_size(&self, path: &str) -> String {
-        if let Ok(meta) = fs::metadata(path) {
-            return self.get_printable_size(meta.len());
-        }
-        "".to_string()
-    }
-    pub fn entry_size(&self, entry: &DirEntry) -> String {
-        let size = entry.metadata().unwrap().len();
-        self.get_printable_size(size)
-    }
-    fn get_printable_size(&self, val: u64) -> String {
-        match &self.size_printer {
-            Some(p) => format!("[{}]  ", p.get_file_size(val)),
+    pub fn entry_details(&self, entry: Metadata) -> String {
+        let mut result = "".to_string();
+        let file_size = match &self.size_printer {
+            Some(sp) => sp.get_file_size(entry.len()),
             _ => "".to_string(),
+        };
+        if self.show_perms {
+            result += format!(
+                "{}{}",
+                if entry.is_dir() {
+                    "d"
+                } else if entry.is_symlink() {
+                    "l"
+                } else {
+                    "-"
+                },
+                format_mode(entry.permissions().mode())
+            )
+            .as_str();
         }
+        if file_size.len() > 0 {
+            result += format!("{}{}", if result.len() > 0 { " " } else { "" }, file_size).as_str();
+        }
+        if result.len() > 0 {
+            return format!("[{}]  ", result);
+        }
+        result
     }
 }
 
@@ -156,6 +189,12 @@ pub fn get_args() -> MyResult<Config> {
                 .action(ArgAction::SetTrue),
         )
         .arg(
+            Arg::new("print_perms")
+                .help("show each entry permission")
+                .short('p')
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("pattern")
                 .help("show each file matching the given pattern")
                 .num_args(1..)
@@ -197,6 +236,7 @@ pub fn get_args() -> MyResult<Config> {
             .collect(),
         size: size.cloned(),
         size_printer,
+        show_perms: matches.get_flag("print_perms"),
     })
 }
 
@@ -204,7 +244,7 @@ pub fn run(config: Config) -> MyResult<()> {
     let mut total_dirs: usize = 0;
     let mut total_files: usize = 0;
     for path in &config.paths {
-        println!("{}{}", config.path_size(path), path);
+        println!("{}{}", config.entry_details(metadata(path)?), path);
         let (dirs, files) = visit_dir(&config, path, 1, true, "".to_string());
         total_dirs += dirs;
         total_files += files;
@@ -223,6 +263,24 @@ pub fn run(config: Config) -> MyResult<()> {
         }
     );
     Ok(())
+}
+
+fn format_mode(mode: u32) -> String {
+    let perm_reader = |mode: u32, owner: Owner| -> String {
+        let [read, write, exec] = owner.get_masks();
+        format!(
+            "{}{}{}",
+            if mode & read == 0 { "-" } else { "r" },
+            if mode & write == 0 { "-" } else { "w" },
+            if mode & exec == 0 { "-" } else { "x" }
+        )
+    };
+    format!(
+        "{}{}{}",
+        perm_reader(mode, Owner::User),
+        perm_reader(mode, Owner::Group),
+        perm_reader(mode, Owner::Other)
+    )
 }
 
 fn get_size_filter(size: Option<String>, file_size: usize) -> bool {
@@ -310,7 +368,7 @@ fn visit_dir(
         let name = entry.file_name().to_str().unwrap();
         let is_end = entries.peek().is_none();
         let sym = if is_end { "└──" } else { "├──" };
-        let size = config.entry_size(&entry);
+        let size = config.entry_details(entry.metadata().expect("entry should have metadata"));
         if entry.file_type().is_dir() {
             let next_bar = format!(
                 "{}{:<s$}",
@@ -343,7 +401,7 @@ fn visit_dir(
                 format!(
                     "{} -> {}",
                     name,
-                    fs::read_link(entry.path())
+                    read_link(entry.path())
                         .unwrap_or_default()
                         .to_str()
                         .unwrap()
@@ -353,4 +411,14 @@ fn visit_dir(
         }
     }
     res
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::format_mode;
+    #[test]
+    fn test_format_mode() {
+        assert_eq!(format_mode(0o755), "rwxr-xr-x");
+        assert_eq!(format_mode(0o421), "r---w---x");
+    }
 }

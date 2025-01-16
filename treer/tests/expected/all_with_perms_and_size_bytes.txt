@@ -1,0 +1,18 @@
+[drwxr-xr-x        4096]  tests/inputs
+├── [drwxr-xr-x        4096]  a
+│   ├── [-rw-r--r--        7443]  a.txt
+│   └── [drwxr-xr-x        4096]  b
+│       ├── [-rw-r--r--           2]  b.csv
+│       └── [drwxr-xr-x        4096]  c
+│           └── [-rw-r--r--           2]  c.mp3
+├── [drwxr-xr-x        4096]  d
+│   ├── [lrwxrwxrwx          10]  b.csv -> ../a/b.csv
+│   ├── [-rw-r--r--           2]  d.tsv
+│   ├── [-rw-r--r--        6139]  d.txt
+│   └── [drwxr-xr-x        4096]  e
+│       └── [-rw-r--r--           2]  e.mp3
+├── [drwxr-xr-x        4096]  f
+│   └── [-rw-r--r--           2]  f.txt
+└── [-rw-r--r--           2]  g.csv
+
+7 directories, 9 files

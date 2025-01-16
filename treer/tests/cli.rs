@@ -197,6 +197,20 @@ fn all_with_size_in_bytes() -> MyResult<()> {
     )
 }
 #[test]
+fn all_with_perms_and_byte_size() -> MyResult<()> {
+    run(
+        &["tests/inputs", "-Sp"],
+        "tests/expected/all_with_perms_and_size_bytes.txt",
+    )
+}
+#[test]
+fn all_with_perms_and_human_size() -> MyResult<()> {
+    run(
+        &["tests/inputs", "-Hp"],
+        "tests/expected/all_with_perms_and_size_human.txt",
+    )
+}
+#[test]
 fn depth_2_lt_1k() -> MyResult<()> {
     run(
         &["tests/inputs", "-s", "-1K", "-L", "2"],
