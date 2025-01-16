@@ -109,21 +109,21 @@ fn depth_2_dir_only() -> MyResult<()> {
 #[test]
 fn path1_show_size() -> MyResult<()> {
     run(
-        &["tests/inputs", "--hint-size"],
+        &["tests/inputs", "-H"],
         "tests/expected/path1_with_size.txt",
     )
 }
 #[test]
 fn path_a_b_d_show_size() -> MyResult<()> {
     run(
-        &["tests/inputs/a/b", "tests/inputs/d", "--hint-size"],
+        &["tests/inputs/a/b", "tests/inputs/d", "-H"],
         "tests/expected/path_a_b_d_show_size.txt",
     )
 }
 #[test]
 fn dir_only_with_size() -> MyResult<()> {
     run(
-        &["tests/inputs", "-d", "--hint-size"],
+        &["tests/inputs", "-d", "-H"],
         "tests/expected/dir_only_with_size.txt",
     )
 }
@@ -178,7 +178,7 @@ fn die_on_size_filter_and_dir_only() -> MyResult<()> {
 #[test]
 fn depth_2_with_size_a() -> MyResult<()> {
     run(
-        &["tests/inputs", "-P", ".*tsv", "--hint-size", "-L", "2"],
+        &["tests/inputs", "-P", ".*tsv", "-H", "-L", "2"],
         "tests/expected/depth_2_tsv_with_size.txt",
     )
 }
@@ -187,6 +187,13 @@ fn path1_with_size_gt_1k() -> MyResult<()> {
     run(
         &["tests/inputs", "-s", "+1K"],
         "tests/expected/path1_with_size_gt_1k.txt",
+    )
+}
+#[test]
+fn all_with_size_in_bytes() -> MyResult<()> {
+    run(
+        &["tests/inputs", "-S"],
+        "tests/expected/all_with_size_in_bytes.txt",
     )
 }
 #[test]

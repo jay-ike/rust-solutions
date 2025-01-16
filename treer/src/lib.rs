@@ -12,7 +12,7 @@ pub struct Config {
     patterns: Vec<Regex>,
     paths: Vec<String>,
     size: Option<String>,
-    show_size: bool,
+    size_printer: Option<SizePrinter>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -22,6 +22,26 @@ enum SizeUnit {
     G,
     T,
     P,
+}
+
+#[derive(Debug)]
+enum SizePrinter {
+    Bytes,
+    Human,
+}
+
+impl SizePrinter {
+    fn get_file_size(&self, size: u64) -> String {
+        match self {
+            SizePrinter::Bytes => format!("{:>11}", size),
+            SizePrinter::Human => {
+                if size < 1024 {
+                    return format!("{:>4}", size);
+                }
+                format!("{:>4}", evaluate_size(size as f64, SizeUnit::K))
+            }
+        }
+    }
 }
 
 impl SizeUnit {
@@ -52,9 +72,6 @@ impl ToString for SizeUnit {
 }
 
 impl Config {
-    pub fn hint_size(&self) -> bool {
-        self.show_size || self.size.is_some()
-    }
     pub fn path_size(&self, path: &str) -> String {
         if let Ok(meta) = fs::metadata(path) {
             return self.get_printable_size(meta.len());
@@ -66,19 +83,11 @@ impl Config {
         self.get_printable_size(size)
     }
     fn get_printable_size(&self, val: u64) -> String {
-        if self.hint_size() {
-            format!("[{:>4}]  ", get_file_size(val))
-        } else {
-            "".to_string()
+        match &self.size_printer {
+            Some(p) => format!("[{}]  ", p.get_file_size(val)),
+            _ => "".to_string(),
         }
     }
-}
-
-fn get_file_size(size: u64) -> String {
-    if size < 1024 {
-        return size.to_string();
-    }
-    evaluate_size(size as f64, SizeUnit::K)
 }
 
 fn evaluate_size(size: f64, unit: SizeUnit) -> String {
@@ -114,7 +123,13 @@ pub fn get_args() -> MyResult<Config> {
         .arg(
             Arg::new("hint_size")
                 .help("show entries size")
-                .long("hint-size")
+                .short('S')
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("human_readable")
+                .help("Print file size in human readable format")
+                .short('H')
                 .action(ArgAction::SetTrue),
         )
         .arg(
@@ -154,6 +169,15 @@ pub fn get_args() -> MyResult<Config> {
                 .conflicts_with("dir_only"),
         )
         .get_matches();
+    let size = matches.get_one::<String>("file-size");
+    let mut size_printer: Option<SizePrinter> = if matches.get_flag("hint_size") {
+        Some(SizePrinter::Bytes)
+    } else {
+        None
+    };
+    if matches.get_flag("human_readable") || size.is_some_and(|v| SizeUnit::is_parsable(v)) {
+        size_printer = Some(SizePrinter::Human);
+    }
     Ok(Config {
         depth: matches.get_one::<usize>("depth").copied(),
         dir_only: matches.get_flag("dir_only"),
@@ -171,10 +195,11 @@ pub fn get_args() -> MyResult<Config> {
             .unwrap_or_default()
             .map(|v| v.to_string())
             .collect(),
-        size: matches.get_one::<String>("file-size").cloned(),
-        show_size: matches.get_flag("hint_size"),
+        size: size.cloned(),
+        size_printer,
     })
 }
+
 pub fn run(config: Config) -> MyResult<()> {
     let mut total_dirs: usize = 0;
     let mut total_files: usize = 0;
@@ -240,6 +265,7 @@ fn get_size_filter(size: Option<String>, file_size: usize) -> bool {
         },
     }
 }
+
 fn visit_dir(
     config: &Config,
     path: &str,
@@ -270,10 +296,15 @@ fn visit_dir(
             Ok(entry) => Some(entry),
         })
         .filter(pattern_filter)
-        .filter(|e| get_size_filter(config.size.clone(), match e.metadata() {
-            Ok(data) => data.len().try_into().unwrap(),
-            _ => 0
-        }) || e.file_type().is_dir())
+        .filter(|e| {
+            get_size_filter(
+                config.size.clone(),
+                match e.metadata() {
+                    Ok(data) => data.len().try_into().unwrap(),
+                    _ => 0,
+                },
+            ) || e.file_type().is_dir()
+        })
         .peekable();
     while let Some(entry) = entries.next() {
         let name = entry.file_name().to_str().unwrap();
