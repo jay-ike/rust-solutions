@@ -1,10 +1,8 @@
+use chrono::{DateTime, Local};
 use clap::{value_parser, Arg, ArgAction, Command};
 use regex::Regex;
-use std::{
-    error::Error,
-    fs::{metadata, read_link, Metadata},
-    os::unix::fs::PermissionsExt,
-};
+use std::{error::Error, fs, os::unix::fs::MetadataExt};
+use users::{get_group_by_gid, get_user_by_uid};
 use walkdir::{DirEntry, WalkDir};
 
 pub type MyResult<T> = Result<T, Box<dyn Error>>;
@@ -17,7 +15,7 @@ pub struct Config {
     paths: Vec<String>,
     size: Option<String>,
     size_printer: Option<SizePrinter>,
-    show_perms: bool,
+    details_settings: [bool; 4],
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -93,14 +91,15 @@ impl ToString for SizeUnit {
 }
 
 impl Config {
-    pub fn entry_details(&self, entry: Metadata) -> String {
-        let mut result = "".to_string();
+    pub fn entry_details(&self, entry: fs::Metadata) -> String {
+        let mut result: Vec<String> = Vec::new();
         let file_size = match &self.size_printer {
             Some(sp) => sp.get_file_size(entry.len()),
             _ => "".to_string(),
         };
-        if self.show_perms {
-            result += format!(
+        let [show_perms, print_user, print_group, print_date] = self.details_settings;
+        if show_perms {
+            result.push(format!(
                 "{}{}",
                 if entry.is_dir() {
                     "d"
@@ -109,17 +108,42 @@ impl Config {
                 } else {
                     "-"
                 },
-                format_mode(entry.permissions().mode())
-            )
-            .as_str();
+                format_mode(entry.mode())
+            ));
         }
         if file_size.len() > 0 {
-            result += format!("{}{}", if result.len() > 0 { " " } else { "" }, file_size).as_str();
+            result.push(file_size);
+        }
+        if print_user {
+            let uid = entry.uid();
+            result.push(format!(
+                "{}",
+                get_user_by_uid(uid)
+                    .map(|u| u.name().to_string_lossy().into_owned())
+                    .unwrap_or_else(|| uid.to_string())
+            ))
+        }
+        if print_group {
+            let gid = entry.gid();
+            result.push(format!(
+                "{}",
+                get_group_by_gid(gid)
+                    .map(|g| g.name().to_string_lossy().into_owned())
+                    .unwrap_or_else(|| gid.to_string())
+            ));
+        }
+        if print_date {
+            if let Ok(m) = entry.modified() {
+                result.push(format!(
+                    "{}",
+                    DateTime::<Local>::from(m).format("%b %d %H:%M")
+                ));
+            }
         }
         if result.len() > 0 {
-            return format!("[{}]  ", result);
+            return format!("[{}]  ", result.join(" "));
         }
-        result
+        "".to_string()
     }
 }
 
@@ -195,6 +219,24 @@ pub fn get_args() -> MyResult<Config> {
                 .action(ArgAction::SetTrue),
         )
         .arg(
+            Arg::new("print_user")
+                .help("print the user owning each entry")
+                .short('u')
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("print_group")
+                .help("print the group owning each entry")
+                .short('g')
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("print_date")
+                .help("print the modification date of each entry")
+                .short('D')
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("pattern")
                 .help("show each file matching the given pattern")
                 .num_args(1..)
@@ -236,7 +278,12 @@ pub fn get_args() -> MyResult<Config> {
             .collect(),
         size: size.cloned(),
         size_printer,
-        show_perms: matches.get_flag("print_perms"),
+        details_settings: [
+            matches.get_flag("print_perms"),
+            matches.get_flag("print_user"),
+            matches.get_flag("print_group"),
+            matches.get_flag("print_date"),
+        ],
     })
 }
 
@@ -244,10 +291,15 @@ pub fn run(config: Config) -> MyResult<()> {
     let mut total_dirs: usize = 0;
     let mut total_files: usize = 0;
     for path in &config.paths {
-        println!("{}{}", config.entry_details(metadata(path)?), path);
-        let (dirs, files) = visit_dir(&config, path, 1, true, "".to_string());
-        total_dirs += dirs;
-        total_files += files;
+        match fs::metadata(path) {
+            Ok(meta) => {
+                println!("{}{}", config.entry_details(meta), path);
+                let (dirs, files) = visit_dir(&config, path, 1, true, "".to_string());
+                total_dirs += dirs;
+                total_files += files;
+            }
+            Err(e) => eprintln!("{}: {}", path, e),
+        }
     }
     println!(
         "\n{} directories{}",
@@ -401,7 +453,7 @@ fn visit_dir(
                 format!(
                     "{} -> {}",
                     name,
-                    read_link(entry.path())
+                    fs::read_link(entry.path())
                         .unwrap_or_default()
                         .to_str()
                         .unwrap()
